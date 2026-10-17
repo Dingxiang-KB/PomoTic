@@ -52,4 +52,13 @@ interface TodoDao {
 
     @Query("DELETE FROM todos")
     suspend fun deleteAll()
+
+    @Query("SELECT * FROM todos")
+    suspend fun getAll(): List<TodoEntity>
+
+    @Query("SELECT dueDate FROM todos WHERE seriesId = :seriesId AND dueDate IS NOT NULL")
+    suspend fun getSeriesDates(seriesId: Long): List<Long>
+
+    @Query("DELETE FROM todos WHERE seriesId = :seriesId AND isCompleted = 0")
+    suspend fun deleteUncompletedInSeries(seriesId: Long)
 }

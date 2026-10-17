@@ -32,4 +32,7 @@ interface TagDao {
 
     @Query("DELETE FROM tags")
     suspend fun deleteAll()
+
+    @Query("SELECT * FROM tags")
+    suspend fun getAll(): List<TagEntity>
 }

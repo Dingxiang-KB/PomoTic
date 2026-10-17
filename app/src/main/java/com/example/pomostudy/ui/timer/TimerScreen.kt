@@ -1,18 +1,24 @@
 package com.example.pomostudy.ui.timer
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
@@ -22,7 +28,6 @@ import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -35,8 +40,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
@@ -77,59 +84,53 @@ fun TimerScreen(
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
-        // 模式选择
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(
-                selected = state.mode == TimerMode.POMODORO,
-                onClick = { vm.setMode(TimerMode.POMODORO) },
-                enabled = !state.isActive,
-                label = { Text("倒计时番茄") }
-            )
-            FilterChip(
-                selected = state.mode == TimerMode.FREE,
-                onClick = { vm.setMode(TimerMode.FREE) },
-                enabled = !state.isActive,
-                label = { Text("自由学习") }
-            )
-        }
+        // 模式：倒计时 / 自由（合成分段控件，中间直线分隔）
+        TwoSegment(
+            left = "倒计时",
+            right = "自由",
+            leftSelected = state.mode == TimerMode.POMODORO,
+            enabled = !state.isActive,
+            onSelectLeft = { vm.setMode(TimerMode.POMODORO) },
+            onSelectRight = { vm.setMode(TimerMode.FREE) }
+        )
 
-        // 阶段选择（仅番茄模式、空闲时）
-        if (state.mode == TimerMode.POMODORO && !state.isActive) {
+        // 工作 / 休息（合成分段控件，仅番茄模式显示；运行时禁用但仍可见）
+        if (state.mode == TimerMode.POMODORO) {
             Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = state.phase == TimerPhase.WORK,
-                    onClick = { vm.setPhase(TimerPhase.WORK) },
-                    label = { Text("工作 ${state.workMinutes} 分") }
-                )
-                FilterChip(
-                    selected = state.phase == TimerPhase.BREAK,
-                    onClick = { vm.setPhase(TimerPhase.BREAK) },
-                    label = { Text("休息 ${state.breakMinutes} 分") }
-                )
-            }
-            // 直接在计时页设置倒计时时长
+            TwoSegment(
+                left = "工作",
+                right = "休息",
+                leftSelected = state.phase == TimerPhase.WORK,
+                enabled = !state.isActive,
+                onSelectLeft = { vm.setPhase(TimerPhase.WORK) },
+                onSelectRight = { vm.setPhase(TimerPhase.BREAK) }
+            )
+            // 只显示当前所选阶段的时长（运行中也保留展示，但不可修改）
             Spacer(Modifier.height(8.dp))
             Card(Modifier.fillMaxWidth()) {
-                Row(
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 8.dp, horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    DurationStepper(
-                        label = "工作时长",
-                        value = state.workMinutes,
-                        range = 1..180,
-                        onChange = { vm.setWorkMinutes(it) }
-                    )
-                    DurationStepper(
-                        label = "休息时长",
-                        value = state.breakMinutes,
-                        range = 1..60,
-                        onChange = { vm.setBreakMinutes(it) }
-                    )
+                    if (state.phase == TimerPhase.WORK) {
+                        DurationStepper(
+                            label = "工作时长（分钟）",
+                            value = state.workMinutes,
+                            range = 1..180,
+                            enabled = !state.isActive,
+                            onChange = { vm.setWorkMinutes(it) }
+                        )
+                    } else {
+                        DurationStepper(
+                            label = "休息时长（分钟）",
+                            value = state.breakMinutes,
+                            range = 1..60,
+                            enabled = !state.isActive,
+                            onChange = { vm.setBreakMinutes(it) }
+                        )
+                    }
                 }
             }
         }
@@ -140,45 +141,51 @@ fun TimerScreen(
         }
         Spacer(Modifier.height(16.dp))
 
-        // 控制按钮
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center
-        ) {
-            when (state.status) {
-                TimerStatus.IDLE -> {
-                    Button(onClick = { vm.start() }) {
-                        Icon(Icons.Filled.PlayArrow, contentDescription = null)
-                        Text("开始", modifier = Modifier.padding(start = 4.dp))
+        // 控制按钮（状态切换带动画）
+        AnimatedContent(
+            targetState = state.status,
+            label = "timerControls",
+            modifier = Modifier.fillMaxWidth()
+        ) { status ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                when (status) {
+                    TimerStatus.IDLE -> {
+                        Button(onClick = { vm.start() }) {
+                            Icon(Icons.Filled.PlayArrow, contentDescription = null)
+                            Text("开始", modifier = Modifier.padding(start = 4.dp))
+                        }
                     }
-                }
 
-                TimerStatus.RUNNING -> {
-                    OutlinedButton(onClick = { vm.pause() }) {
-                        Icon(Icons.Filled.Pause, contentDescription = null)
-                        Text("暂停", modifier = Modifier.padding(start = 4.dp))
+                    TimerStatus.RUNNING -> {
+                        OutlinedButton(onClick = { vm.pause() }) {
+                            Icon(Icons.Filled.Pause, contentDescription = null)
+                            Text("暂停", modifier = Modifier.padding(start = 4.dp))
+                        }
+                        Spacer(Modifier.size(12.dp))
+                        Button(onClick = { vm.finish() }) {
+                            Icon(Icons.Filled.Stop, contentDescription = null)
+                            Text("结束", modifier = Modifier.padding(start = 4.dp))
+                        }
                     }
-                    Spacer(Modifier.size(12.dp))
-                    Button(onClick = { vm.finish() }) {
-                        Icon(Icons.Filled.Stop, contentDescription = null)
-                        Text("结束", modifier = Modifier.padding(start = 4.dp))
-                    }
-                }
 
-                TimerStatus.PAUSED -> {
-                    Button(onClick = { vm.resume() }) {
-                        Icon(Icons.Filled.PlayArrow, contentDescription = null)
-                        Text("继续", modifier = Modifier.padding(start = 4.dp))
-                    }
-                    Spacer(Modifier.size(12.dp))
-                    OutlinedButton(onClick = { vm.finish() }) {
-                        Icon(Icons.Filled.Stop, contentDescription = null)
-                        Text("结束", modifier = Modifier.padding(start = 4.dp))
-                    }
-                    Spacer(Modifier.size(12.dp))
-                    OutlinedButton(onClick = { vm.reset() }) {
-                        Icon(Icons.Filled.Refresh, contentDescription = null)
-                        Text("重置", modifier = Modifier.padding(start = 4.dp))
+                    TimerStatus.PAUSED -> {
+                        Button(onClick = { vm.resume() }) {
+                            Icon(Icons.Filled.PlayArrow, contentDescription = null)
+                            Text("继续", modifier = Modifier.padding(start = 4.dp))
+                        }
+                        Spacer(Modifier.size(12.dp))
+                        OutlinedButton(onClick = { vm.finish() }) {
+                            Icon(Icons.Filled.Stop, contentDescription = null)
+                            Text("结束", modifier = Modifier.padding(start = 4.dp))
+                        }
+                        Spacer(Modifier.size(12.dp))
+                        OutlinedButton(onClick = { vm.reset() }) {
+                            Icon(Icons.Filled.Refresh, contentDescription = null)
+                            Text("重置", modifier = Modifier.padding(start = 4.dp))
+                        }
                     }
                 }
             }
@@ -208,7 +215,7 @@ fun TimerScreen(
         val activeTodos = todos.filter { !it.isCompleted }
         val selectedTodo = todos.firstOrNull { it.id == state.boundTodoId }
         SimpleDropdown(
-            label = "绑定待办（用于统计该待办的学习时长）",
+            label = "绑定待办（统计该待办学习时长）",
             items = activeTodos,
             selected = selectedTodo,
             itemLabel = { it.title },
@@ -217,17 +224,19 @@ fun TimerScreen(
             placeholder = if (activeTodos.isEmpty()) "暂无未完成待办" else "不绑定"
         )
         if (selectedTodo != null) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(
-                    checked = state.autoCompleteTodo,
-                    onCheckedChange = { vm.setAutoComplete(it) }
-                )
-                Text(
-                    text = "计时结束后自动标记该待办完成",
-                    style = MaterialTheme.typography.bodyMedium
-                )
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = state.autoCompleteTodo,
+                        onCheckedChange = { vm.setAutoComplete(it) }
+                    )
+                    Text(
+                        text = "结束后自动完成该待办",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                TextButton(onClick = { vm.setBoundTodo(null) }) { Text("取消绑定") }
             }
-            TextButton(onClick = { vm.setBoundTodo(null) }) { Text("取消绑定") }
         }
 
         Spacer(Modifier.height(8.dp))
@@ -255,6 +264,73 @@ fun TimerScreen(
             }
         }
         Spacer(Modifier.height(24.dp))
+    }
+}
+
+/** 两段式分段控件（中间直线分隔，略高）。 */
+@Composable
+private fun TwoSegment(
+    left: String,
+    right: String,
+    leftSelected: Boolean,
+    enabled: Boolean,
+    onSelectLeft: () -> Unit,
+    onSelectRight: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(46.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        SegmentCell(
+            text = left,
+            selected = leftSelected,
+            enabled = enabled,
+            modifier = Modifier.weight(1f),
+            onClick = onSelectLeft
+        )
+        Box(
+            Modifier
+                .width(1.dp)
+                .fillMaxHeight()
+                .background(MaterialTheme.colorScheme.outlineVariant)
+        )
+        SegmentCell(
+            text = right,
+            selected = !leftSelected,
+            enabled = enabled,
+            modifier = Modifier.weight(1f),
+            onClick = onSelectRight
+        )
+    }
+}
+
+@Composable
+private fun SegmentCell(
+    text: String,
+    selected: Boolean,
+    enabled: Boolean,
+    modifier: Modifier,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .fillMaxHeight()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
+            .clickable(enabled = enabled) { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (selected) MaterialTheme.colorScheme.onPrimary
+            else MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -316,6 +392,7 @@ private fun DurationStepper(
     label: String,
     value: Int,
     range: IntRange,
+    enabled: Boolean,
     onChange: (Int) -> Unit
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -325,18 +402,23 @@ private fun DurationStepper(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedButton(onClick = { onChange((value - 1).coerceIn(range.first, range.last)) }) {
-                Text("−")
-            }
+            OutlinedButton(
+                onClick = { onChange((value - 1).coerceIn(range.first, range.last)) },
+                enabled = enabled
+            ) { Text("−") }
             Text(
                 text = "$value",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 12.dp)
+                modifier = Modifier
+                    .width(64.dp)
+                    .padding(vertical = 4.dp),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
-            OutlinedButton(onClick = { onChange((value + 1).coerceIn(range.first, range.last)) }) {
-                Text("＋")
-            }
+            OutlinedButton(
+                onClick = { onChange((value + 1).coerceIn(range.first, range.last)) },
+                enabled = enabled
+            ) { Text("＋") }
         }
     }
 }

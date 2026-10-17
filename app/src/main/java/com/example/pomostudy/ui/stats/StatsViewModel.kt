@@ -24,6 +24,13 @@ data class StatSlice(val label: String, val colorLong: Long, val seconds: Long)
 /** 一周单日数据点（周一..周日）。 */
 data class DailyPoint(val label: String, val seconds: Long)
 
+/** 单个「有计划」待办的完成情况。 */
+data class PlannedProgress(
+    val title: String,
+    val plannedSeconds: Long,
+    val actualSeconds: Long
+)
+
 data class StatsUiState(
     val period: StatsPeriod = StatsPeriod.DAY,
     /** 回溯偏移：0 表示当前周期，-1 表示上一周期…… */
@@ -40,6 +47,11 @@ data class StatsUiState(
     val plannedSeconds: Long = 0L,
     /** 本周期内在“有计划待办”上实际投入的时长（秒）。 */
     val plannedActualSeconds: Long = 0L,
+    /** 本周期内各「有计划」待办的完成明细。 */
+    val plannedItems: List<PlannedProgress> = emptyList(),
+    /** 周期区间展示：周维度用两段（中间灰色横线），其余用 rangeLabel。 */
+    val rangeStartLabel: String = "",
+    val rangeEndLabel: String? = null,
     val goalMinutes: Int = 120,
     val loading: Boolean = false
 ) {
@@ -127,15 +139,27 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         }
 
         // 计划进度：本周期内有设置计划时长的待办，及其实际投入时长
+        val actualByTodo = byTodo
+            .mapNotNull { d -> d.todoId?.let { it to d.totalSeconds } }
+            .toMap()
         val plannedTodos = todos.filter { t ->
             val d = t.dueDate
             t.plannedMinutes != null && d != null && d in start..end
         }
-        val plannedSeconds = plannedTodos.sumOf { (it.plannedMinutes ?: 0).toLong() * 60L }
-        val plannedIds = plannedTodos.map { it.id }.toSet()
-        val plannedActual = byTodo
-            .filter { it.todoId != null && it.todoId in plannedIds }
-            .sumOf { it.totalSeconds }
+        val plannedItems = plannedTodos.map { t ->
+            PlannedProgress(
+                title = t.title,
+                plannedSeconds = (t.plannedMinutes ?: 0).toLong() * 60L,
+                actualSeconds = actualByTodo[t.id] ?: 0L
+            )
+        }
+        val plannedSeconds = plannedItems.sumOf { it.plannedSeconds }
+        val plannedActual = plannedItems.sumOf { it.actualSeconds }
+
+        val rangeEndLabel: String? =
+            if (s.period == StatsPeriod.WEEK) TimeUtils.formatDate(end).takeLast(5) else null
+        val rangeStartLabel: String =
+            if (s.period == StatsPeriod.WEEK) TimeUtils.formatDate(start).takeLast(5) else label
 
         // 学习曲线：仅在“日/周”维度展示，且跟随所选周期（其所在周）与回溯偏移；月维度不展示
         val weekly: List<DailyPoint> = if (s.period == StatsPeriod.MONTH) {
@@ -160,6 +184,9 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
                 plannedTodoCount = plannedTodos.size,
                 plannedSeconds = plannedSeconds,
                 plannedActualSeconds = plannedActual,
+                plannedItems = plannedItems,
+                rangeStartLabel = rangeStartLabel,
+                rangeEndLabel = rangeEndLabel,
                 rangeLabel = label,
                 isCurrent = s.periodOffset == 0,
                 loading = false

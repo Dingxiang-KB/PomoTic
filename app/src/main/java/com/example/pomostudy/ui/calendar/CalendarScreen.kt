@@ -25,6 +25,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -44,6 +45,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -107,7 +110,6 @@ fun CalendarScreen(container: AppContainer) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = {
@@ -117,9 +119,16 @@ fun CalendarScreen(container: AppContainer) {
             }
             Text(
                 text = "${state.firstVisibleMonth.yearMonth.year} 年 ${state.firstVisibleMonth.yearMonth.monthValue} 月",
+                modifier = Modifier.weight(1f),
+                textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold
             )
+            IconButton(onClick = {
+                scope.launch { state.animateScrollToMonth(YearMonth.from(today)) }
+            }) {
+                Icon(Icons.Filled.Today, contentDescription = "回到当前月")
+            }
             IconButton(onClick = {
                 scope.launch { state.animateScrollToMonth(state.firstVisibleMonth.yearMonth.plusMonths(1)) }
             }) {
@@ -248,6 +257,7 @@ private fun CalendarDayCell(
     onLongClick: () -> Unit
 ) {
     val isOutDate = day.position != DayPosition.MonthDate
+    val gridColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
     val bg by animateColorAsState(
         targetValue = when {
             isSelected -> MaterialTheme.colorScheme.primaryContainer
@@ -263,6 +273,21 @@ private fun CalendarDayCell(
             .padding(2.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(bg)
+            .drawBehind {
+                val w = 0.6.dp.toPx()
+                drawLine(
+                    color = gridColor,
+                    start = Offset(size.width - w / 2f, 0f),
+                    end = Offset(size.width - w / 2f, size.height),
+                    strokeWidth = w
+                )
+                drawLine(
+                    color = gridColor,
+                    start = Offset(0f, size.height - w / 2f),
+                    end = Offset(size.width, size.height - w / 2f),
+                    strokeWidth = w
+                )
+            }
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(4.dp)
     ) {
@@ -276,8 +301,10 @@ private fun CalendarDayCell(
             )
             todos.take(3).forEach { todo ->
                 val tagColor = todo.tagId?.let { tagMap[it]?.color?.toComposeColor() }
+                val dotColor = if (todo.isCompleted) Color(0xFF43A047)
+                else (tagColor ?: MaterialTheme.colorScheme.primary)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(4.dp).clip(CircleShape).background(tagColor ?: MaterialTheme.colorScheme.primary))
+                    Box(Modifier.size(4.dp).clip(CircleShape).background(dotColor))
                     Text(
                         text = todo.title,
                         maxLines = 1,

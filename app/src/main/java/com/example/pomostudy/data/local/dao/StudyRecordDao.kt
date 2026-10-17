@@ -57,4 +57,7 @@ interface StudyRecordDao {
 
     @Query("DELETE FROM study_records")
     suspend fun deleteAll()
+
+    @Query("SELECT * FROM study_records")
+    suspend fun getAll(): List<StudyRecordEntity>
 }
