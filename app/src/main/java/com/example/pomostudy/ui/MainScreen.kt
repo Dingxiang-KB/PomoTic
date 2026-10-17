@@ -78,7 +78,7 @@ private val bottomItems = listOf(
 private val mainRoutes = bottomItems.map { it.route }.toSet()
 
 private fun titleFor(route: String): String = when (route) {
-    Routes.TIMER -> "番茄钟"
+    Routes.TIMER -> "计时"
     Routes.TODO -> "待办"
     Routes.CALENDAR -> "日历"
     Routes.STATS -> "统计"

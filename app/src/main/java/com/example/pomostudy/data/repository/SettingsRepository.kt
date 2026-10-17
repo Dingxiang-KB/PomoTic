@@ -85,6 +85,13 @@ class SettingsRepository(context: Context) {
 
     suspend fun setThemeMode(mode: ThemeMode) = store.edit { it[Keys.THEME] = mode.name }
 
+    /** 重置配置为默认值（调试/清空数据时使用）。 */
+    suspend fun resetToDefaults() = store.edit { p ->
+        p[Keys.WORK] = 25
+        p[Keys.BREAK] = 5
+        p[Keys.GOAL] = 120
+    }
+
     suspend fun saveTimerSnapshot(snapshot: TimerSnapshot) = store.edit { p ->
         p[Keys.T_ACTIVE] = true
         p[Keys.T_MODE] = snapshot.mode

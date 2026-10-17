@@ -35,6 +35,11 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         container.settingsRepository.setThemeMode(mode)
     }
 
+    /** 清空所有本地数据（调试用）。 */
+    fun clearAllData() = viewModelScope.launch {
+        container.clearAllData()
+    }
+
     companion object {
         fun factory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
             initializer { SettingsViewModel(container) }

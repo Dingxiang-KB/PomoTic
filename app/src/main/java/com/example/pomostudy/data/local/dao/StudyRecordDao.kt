@@ -54,4 +54,7 @@ interface StudyRecordDao {
 
     @Query("SELECT * FROM study_records WHERE todoId = :todoId ORDER BY startTime DESC")
     fun observeByTodo(todoId: Long): Flow<List<StudyRecordEntity>>
+
+    @Query("DELETE FROM study_records")
+    suspend fun deleteAll()
 }

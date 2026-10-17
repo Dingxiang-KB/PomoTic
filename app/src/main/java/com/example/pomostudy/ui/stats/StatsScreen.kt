@@ -27,7 +27,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -43,22 +42,17 @@ import com.example.pomostudy.ui.components.EmptyHint
 import com.example.pomostudy.ui.components.SectionTitle
 import com.example.pomostudy.ui.theme.toComposeColor
 import com.example.pomostudy.util.TimeUtils
-import java.time.YearMonth
 
-/** 统计页：按日/周/月聚合“各待办”学习时长（支持回溯）+ 饼图 + 本周曲线 + 目标进度。 */
+/** 统计页：按日/周/月聚合“各待办”学习时长（支持回溯）+ 饼图 + 本周曲线 + 计划完成进度。 */
 @Composable
 fun StatsScreen(container: AppContainer) {
     val vm: StatsViewModel = viewModel(factory = StatsViewModel.factory(container))
     val state by vm.state.collectAsStateWithLifecycle()
 
-    val periodDays = when (state.period) {
-        StatsPeriod.DAY -> 1
-        StatsPeriod.WEEK -> 7
-        StatsPeriod.MONTH -> YearMonth.now().lengthOfMonth()
-    }
-    val goalSeconds = (state.goalMinutes * 60L * periodDays).coerceAtLeast(1L)
-    val targetProgress = (state.totalSeconds.toFloat() / goalSeconds.toFloat()).coerceIn(0f, 1f)
-    val progress by animateFloatAsState(targetValue = targetProgress, label = "goalProgress")
+    val planProgressTarget =
+        if (state.plannedSeconds <= 0L) 0f
+        else (state.plannedActualSeconds.toFloat() / state.plannedSeconds.toFloat()).coerceIn(0f, 1f)
+    val planProgress by animateFloatAsState(targetValue = planProgressTarget, label = "planProgress")
 
     val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
     val lineColor = MaterialTheme.colorScheme.primary.toArgb()
@@ -153,31 +147,41 @@ fun StatsScreen(container: AppContainer) {
         }
 
         Spacer(Modifier.height(16.dp))
-        SectionTitle("目标完成进度")
+        SectionTitle("计划完成进度")
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp)) {
-                Text(
-                    text = "每日目标：${state.goalMinutes} 分钟",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                if (state.period != StatsPeriod.DAY) {
+                if (state.plannedSeconds <= 0L) {
                     Text(
-                        text = "本${periodLabel(state.period)}目标：${state.goalMinutes} × $periodDays = ${state.goalMinutes * periodDays} 分钟",
+                        text = "本${periodLabel(state.period)}还没有设置计划时长的待办",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        text = "可在待办中为事项设置“每日计划时长”，这里将展示计划完成进度",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Text(
+                        text = "计划待办 ${state.plannedTodoCount} 个 · 计划 ${TimeUtils.formatDuration(state.plannedSeconds)}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        text = "已完成 ${TimeUtils.formatDuration(state.plannedActualSeconds)} / 计划 ${TimeUtils.formatDuration(state.plannedSeconds)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    LinearProgressIndicator(
+                        progress = { planProgress },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "完成 ${(planProgress * 100).toInt()}%",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Spacer(Modifier.height(8.dp))
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = "已完成 ${(progress * 100).toInt()}%",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
         }
 
@@ -228,7 +232,7 @@ fun StatsScreen(container: AppContainer) {
 
         if (state.showWeekly) {
             Spacer(Modifier.height(16.dp))
-            SectionTitle("学习曲线（周一 ~ 周日）")
+            SectionTitle("学习曲线")
             Card(Modifier.fillMaxWidth()) {
                 WeeklyLineChart(
                     points = state.weekly,

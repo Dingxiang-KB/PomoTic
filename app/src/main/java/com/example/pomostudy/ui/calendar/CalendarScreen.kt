@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,7 +28,6 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -55,7 +53,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.pomostudy.data.local.entity.StudyRecordEntity
 import com.example.pomostudy.data.local.entity.TagEntity
 import com.example.pomostudy.data.local.entity.TodoEntity
 import com.example.pomostudy.di.AppContainer
@@ -64,7 +61,6 @@ import com.example.pomostudy.ui.components.PriorityBadge
 import com.example.pomostudy.ui.components.TagChip
 import com.example.pomostudy.ui.theme.toComposeColor
 import com.example.pomostudy.ui.todo.TodoEditorDialog
-import com.example.pomostudy.util.TimeUtils
 import com.kizitonwose.calendar.compose.HorizontalCalendar
 import com.kizitonwose.calendar.compose.rememberCalendarState
 import com.kizitonwose.calendar.core.CalendarDay
@@ -77,13 +73,12 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 
-/** 月日历视图：周一到周日排布，格子内展示当天待办；点击某天可查看并增删改当天待办。 */
+/** 月日历视图：周一到周日排布，格子内展示当天待办（含已完成）；点击某天可查看并增删改当天待办。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarScreen(container: AppContainer) {
     val vm: CalendarViewModel = viewModel(factory = CalendarViewModel.factory(container))
     val todos by vm.todos.collectAsStateWithLifecycle()
-    val records by vm.records.collectAsStateWithLifecycle()
     val tags by vm.tags.collectAsStateWithLifecycle()
 
     val scope = rememberCoroutineScope()
@@ -95,11 +90,9 @@ fun CalendarScreen(container: AppContainer) {
         firstDayOfWeek = DayOfWeek.MONDAY
     )
 
+    // 仅“绑定了日期”的待办才会出现在日历上（未绑定日期的不显示）
     val todosByDate = remember(todos) {
         todos.filter { it.dueDate != null }.groupBy { millisToLocalDate(it.dueDate!!) }
-    }
-    val recordsByDate = remember(records) {
-        records.groupBy { millisToLocalDate(it.startTime) }
     }
     val tagMap = remember(tags) { tags.associateBy { it.id } }
 
@@ -139,8 +132,8 @@ fun CalendarScreen(container: AppContainer) {
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            LegendDot(color = MaterialTheme.colorScheme.primary, text = "待办事项")
-            LegendDot(color = Color(0xFF43A047), text = "已完成番茄记录")
+            LegendDot(color = MaterialTheme.colorScheme.primary, text = "待办")
+            LegendDot(color = Color(0xFF43A047), text = "已完成")
         }
 
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
@@ -164,7 +157,6 @@ fun CalendarScreen(container: AppContainer) {
                     isToday = day.date == today,
                     isSelected = day.date == selectedDate,
                     todos = todosByDate[day.date].orEmpty(),
-                    records = recordsByDate[day.date].orEmpty(),
                     tagMap = tagMap,
                     onClick = { selectedDate = day.date },
                     onLongClick = { selectedDate = day.date }
@@ -183,7 +175,6 @@ fun CalendarScreen(container: AppContainer) {
             DayDetailContent(
                 date = sheetDate,
                 todos = todosByDate[sheetDate].orEmpty(),
-                records = recordsByDate[sheetDate].orEmpty(),
                 tagMap = tagMap,
                 onAdd = {
                     editing = null
@@ -252,7 +243,6 @@ private fun CalendarDayCell(
     isToday: Boolean,
     isSelected: Boolean,
     todos: List<TodoEntity>,
-    records: List<StudyRecordEntity>,
     tagMap: Map<Long, TagEntity>,
     onClick: () -> Unit,
     onLongClick: () -> Unit
@@ -284,7 +274,6 @@ private fun CalendarDayCell(
                 color = if (isOutDate) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                 else MaterialTheme.colorScheme.onSurface
             )
-            // 待办文本（最多 3 条，完成划线）
             todos.take(3).forEach { todo ->
                 val tagColor = todo.tagId?.let { tagMap[it]?.color?.toComposeColor() }
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -295,23 +284,9 @@ private fun CalendarDayCell(
                         overflow = TextOverflow.Ellipsis,
                         fontSize = 9.sp,
                         textDecoration = if (todo.isCompleted) TextDecoration.LineThrough else null,
-                        color = if (todo.isCompleted) MaterialTheme.colorScheme.onSurfaceVariant
+                        color = if (todo.isCompleted) Color(0xFF43A047)
                         else MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(start = 2.dp)
-                    )
-                }
-            }
-            // 学习记录标识
-            if (records.isNotEmpty()) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(top = 2.dp)
-                ) {
-                    Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF43A047)))
-                    Text(
-                        text = " ${records.size} 条",
-                        fontSize = 9.sp,
-                        color = Color(0xFF43A047)
                     )
                 }
             }
@@ -335,7 +310,6 @@ private fun LegendDot(color: Color, text: String) {
 private fun DayDetailContent(
     date: LocalDate,
     todos: List<TodoEntity>,
-    records: List<StudyRecordEntity>,
     tagMap: Map<Long, TagEntity>,
     onAdd: () -> Unit,
     onEdit: (TodoEntity) -> Unit,
@@ -380,6 +354,13 @@ private fun DayDetailContent(
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             PriorityBadge(todo.priority)
                             if (tag != null) TagChip(tag.name, tag.color)
+                            todo.plannedMinutes?.let {
+                                Text(
+                                    text = "计划 $it 分",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                     IconButton(onClick = { onEdit(todo) }) {
@@ -391,37 +372,7 @@ private fun DayDetailContent(
                 }
             }
         }
-        item { HorizontalDivider() }
-        item {
-            Text("当日学习记录（${records.size}）", style = MaterialTheme.typography.titleMedium)
-        }
-        if (records.isEmpty()) {
-            item { Text("无", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        } else {
-            items(records, key = { it.id }) { r ->
-                val tag = r.tagId?.let { tagMap[it] }
-                Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = TimeUtils.formatDuration(r.durationSeconds),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium
-                        )
-                        if (tag != null) {
-                            Spacer(Modifier.size(8.dp))
-                            TagChip(tag.name, tag.color)
-                        }
-                    }
-                    Text(
-                        text = "${TimeUtils.formatTime(r.startTime)} - ${TimeUtils.formatTime(r.endTime)}" +
-                            if (r.note.isNotBlank()) " · ${r.note}" else "",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-        item { Spacer(Modifier.height(24.dp)) }
+        item { Box(Modifier.height(24.dp)) }
     }
 }
 

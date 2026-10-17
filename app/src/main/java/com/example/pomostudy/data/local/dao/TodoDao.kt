@@ -49,4 +49,7 @@ interface TodoDao {
     /** 统计某系列在某天的实例数量（用于避免重复生成）。 */
     @Query("SELECT COUNT(*) FROM todos WHERE seriesId = :seriesId AND dueDate = :dueDate")
     suspend fun countInSeriesOnDate(seriesId: Long, dueDate: Long): Int
+
+    @Query("DELETE FROM todos")
+    suspend fun deleteAll()
 }

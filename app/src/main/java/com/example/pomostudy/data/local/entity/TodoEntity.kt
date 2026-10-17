@@ -42,6 +42,8 @@ data class TodoEntity(
     val priority: Priority = Priority.MEDIUM,
     val isCompleted: Boolean = false,
     val repeatRule: RepeatRule = RepeatRule.NONE,
+    /** 计划学习时长（分钟），用于统计“计划完成进度”；为空表示未设置计划。 */
+    val plannedMinutes: Int? = null,
     /** 历史遗留字段，保留兼容，不再使用。 */
     val carryOver: Boolean = false,
     val createdAt: Long = System.currentTimeMillis()

@@ -8,10 +8,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -30,6 +32,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.pomostudy.data.local.entity.TagEntity
 import com.example.pomostudy.data.local.entity.TodoEntity
@@ -65,6 +69,8 @@ fun TodoEditorDialog(
         )
     }
     var endDate by remember { mutableStateOf(initial?.endDate) }
+    var plannedEnabled by remember { mutableStateOf(initial?.plannedMinutes != null) }
+    var plannedMinutes by remember { mutableStateOf(initial?.plannedMinutes ?: 30) }
     var showEndPicker by remember { mutableStateOf(false) }
 
     val isDaily = repeatRule == RepeatRule.DAILY
@@ -92,6 +98,7 @@ fun TodoEditorDialog(
                             dueDate = dueDate,
                             endDate = if (isDaily) endDate else null,
                             seriesId = if (isDaily) base.seriesId else null,
+                            plannedMinutes = if (plannedEnabled) plannedMinutes else null,
                             carryOver = false
                         )
                     )
@@ -181,6 +188,31 @@ fun TodoEditorDialog(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = plannedEnabled,
+                        onCheckedChange = { plannedEnabled = it }
+                    )
+                    Text("设置每日计划时长", style = MaterialTheme.typography.bodyMedium)
+                }
+                if (plannedEnabled) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedButton(onClick = {
+                            plannedMinutes = (plannedMinutes - 10).coerceAtLeast(10)
+                        }) { Text("−") }
+                        Text(
+                            text = "$plannedMinutes 分",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.width(84.dp),
+                            textAlign = TextAlign.Center
+                        )
+                        OutlinedButton(onClick = {
+                            plannedMinutes = (plannedMinutes + 10).coerceAtMost(1440)
+                        }) { Text("＋") }
+                    }
                 }
             }
         }

@@ -107,7 +107,7 @@ fun WeeklyLineChart(
                 setDrawFilled(true)
                 fillColor = lineColor
                 fillAlpha = 60
-                mode = LineDataSet.Mode.CUBIC_BEZIER
+                mode = LineDataSet.Mode.LINEAR
             }
             chart.xAxis.valueFormatter = IndexAxisValueFormatter(points.map { it.label })
             chart.xAxis.axisMinimum = -0.5f

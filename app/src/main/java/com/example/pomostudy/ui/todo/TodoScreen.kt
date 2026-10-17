@@ -5,6 +5,7 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -237,13 +238,29 @@ private fun WeekStrip(
             IconButton(onClick = { onShiftWeek(-1) }) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "上一周")
             }
-            Text(
-                text = "${TimeUtils.formatDate(days.first()).takeLast(5)} ~ ${TimeUtils.formatDate(days.last()).takeLast(5)}",
+            Row(
                 modifier = Modifier.weight(1f),
-                textAlign = TextAlign.Center,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-            )
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = TimeUtils.formatDate(days.first()).takeLast(5),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp)
+                        .width(20.dp)
+                        .height(1.dp)
+                        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                )
+                Text(
+                    text = TimeUtils.formatDate(days.last()).takeLast(5),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
             IconButton(onClick = { onShiftWeek(1) }) {
                 Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "下一周")
             }
@@ -281,6 +298,7 @@ private fun WeekStrip(
                         .weight(1f)
                         .clip(RoundedCornerShape(10.dp))
                         .background(bg)
+                        .clickable { onSelectDay(day) }
                         .padding(vertical = 6.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {

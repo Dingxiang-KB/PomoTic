@@ -1,6 +1,7 @@
 package com.example.pomostudy.di
 
 import android.content.Context
+import androidx.room.withTransaction
 import com.example.pomostudy.data.local.PomoDatabase
 import com.example.pomostudy.data.repository.SettingsRepository
 import com.example.pomostudy.data.repository.StudyRepository
@@ -29,5 +30,19 @@ class AppContainer(context: Context) {
     /** 计时控制器为应用级单例，UI 与前台服务共享同一状态。 */
     val timerController: TimerController by lazy {
         TimerController(appContext, settingsRepository, studyRepository, todoRepository)
+    }
+
+    /**
+     * 清空所有本地数据（调试用）：学习记录、待办、标签，并重置计时与全局配置。
+     * 在事务中按“记录 -> 待办 -> 标签”的顺序删除，避免外键约束问题。
+     */
+    suspend fun clearAllData() {
+        database.withTransaction {
+            database.studyRecordDao().deleteAll()
+            database.todoDao().deleteAll()
+            database.tagDao().deleteAll()
+        }
+        timerController.reset()
+        settingsRepository.resetToDefaults()
     }
 }

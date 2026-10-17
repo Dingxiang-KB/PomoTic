@@ -34,6 +34,12 @@ data class StatsUiState(
     val slices: List<StatSlice> = emptyList(),
     /** 当前自然周（周一..周日）每日学习时长，用于曲线图。 */
     val weekly: List<DailyPoint> = emptyList(),
+    /** 本周期内设置了计划时长的待办数量。 */
+    val plannedTodoCount: Int = 0,
+    /** 本周期内计划学习总时长（秒）。 */
+    val plannedSeconds: Long = 0L,
+    /** 本周期内在“有计划待办”上实际投入的时长（秒）。 */
+    val plannedActualSeconds: Long = 0L,
     val goalMinutes: Int = 120,
     val loading: Boolean = false
 ) {
@@ -120,6 +126,17 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
             )
         }
 
+        // 计划进度：本周期内有设置计划时长的待办，及其实际投入时长
+        val plannedTodos = todos.filter { t ->
+            val d = t.dueDate
+            t.plannedMinutes != null && d != null && d in start..end
+        }
+        val plannedSeconds = plannedTodos.sumOf { (it.plannedMinutes ?: 0).toLong() * 60L }
+        val plannedIds = plannedTodos.map { it.id }.toSet()
+        val plannedActual = byTodo
+            .filter { it.todoId != null && it.todoId in plannedIds }
+            .sumOf { it.totalSeconds }
+
         // 学习曲线：仅在“日/周”维度展示，且跟随所选周期（其所在周）与回溯偏移；月维度不展示
         val weekly: List<DailyPoint> = if (s.period == StatsPeriod.MONTH) {
             emptyList()
@@ -140,6 +157,9 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
                 totalSeconds = total,
                 slices = slices,
                 weekly = weekly,
+                plannedTodoCount = plannedTodos.size,
+                plannedSeconds = plannedSeconds,
+                plannedActualSeconds = plannedActual,
                 rangeLabel = label,
                 isCurrent = s.periodOffset == 0,
                 loading = false
