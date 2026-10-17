@@ -1,0 +1,7 @@
+{
+  "directions": [
+    {"id":"d1","desc":"Use Android Studio JBR JDK25 via -Dorg.gradle.java.home instead of relying on foojay toolchain download","status":"chosen","rationale":"foojay host unreachable; daemon-jvm criteria wants JDK25"},
+    {"id":"d2","desc":"Manual DI (AppContainer) instead of Hilt","status":"chosen","rationale":"avoid Hilt/kapt+AGP9 risk; keeps build simple"},
+    {"id":"d3","desc":"Room via KSP 2.2.10-2.0.2 (matches Kotlin 2.2.10)","status":"chosen","rationale":"only processor compatible with Kotlin 2.2.10"}
+  ]
+}

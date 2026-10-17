@@ -1,0 +1,6 @@
+{"ts":"2026-10-17T02:00:00+08:00","kind":"env","finding":"Android Studio JBR at D:\\software\\android-studio\\jbr is JDK25; use -Dorg.gradle.java.home for Gradle since foojay unreachable"}
+{"ts":"2026-10-17T02:00:00+08:00","kind":"env","finding":"AGP 9.4.0 DSL uses compileSdk { version = release(37) } and buildTypes.release.optimization{enable=...}; template built OK"}
+{"ts":"2026-10-17T02:00:00+08:00","kind":"deps","finding":"KSP scheme: for Kotlin 2.2.10 use 2.2.10-2.0.2; 2.3.x is new independent scheme"}
+{"ts":"2026-10-17T02:00:00+08:00","kind":"deps","finding":"compose-calendar artifact = com.kizitonwose.calendar:compose:2.10.1 (needs compose ui 1.10.1; BOM gives 1.10.4 OK)"}
+{"ts":"2026-10-17T02:00:00+08:00","kind":"deps","finding":"MPAndroidChart v3.1.0 on jitpack depends only androidx.annotation 1.0.0 (no support-lib conflict)"}
+{"ts":"2026-10-17T02:00:00+08:00","kind":"deps","finding":"material-icons-core & material-icons-extended both present in compose-bom 2026.02.01"}

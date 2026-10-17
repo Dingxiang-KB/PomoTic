@@ -1,0 +1,5 @@
+{"ts":"2026-10-17T02:00:00+08:00","iter":0,"action":"recon","result":"confirmed toolchain, locked dep versions, network OK","evidence":"daemon log BUILD SUCCESSFUL; metadata fetches","stale_count":0}
+{"ts":"2026-10-17T02:20:00+08:00","iter":1,"action":"first assembleDebug","result":"FAIL: KSP/kotlin.sourceSets + DataStore import","evidence":"compileDebugKotlin errors","stale_count":0}
+{"ts":"2026-10-17T02:30:00+08:00","iter":2,"action":"fix disallowKotlinSourceSets + DataStore import; rebuild","result":"FAIL: only PieChartView return@update label error","evidence":"kspDebugKotlin OK (Room codegen works)","stale_count":0}
+{"ts":"2026-10-17T02:40:00+08:00","iter":3,"action":"fix PieChartView; assembleDebug","result":"BUILD SUCCESSFUL; app-debug.apk 21,307,689 bytes","evidence":"Gradle BUILD SUCCESSFUL in 23s","stale_count":0}
+{"ts":"2026-10-17T03:00:00+08:00","iter":4,"action":"assembleDebug + assembleRelease; docs; audit","result":"BUILD SUCCESSFUL both variants; all 7 success criteria PASS","evidence":"APK files exist; README/LICENSE/reMD doc present; no path leak","stale_count":0}

@@ -1,0 +1,29 @@
+# ---- Gradle ----
+.gradle/
+build/
+
+# ---- Android Studio / IntelliJ ----
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+
+# ---- Kotlin ----
+.kotlin/
+
+# ---- Local config（包含本机 SDK 路径，切勿提交）----
+local.properties
+
+# ---- macOS ----
+.DS_Store
+
+# ---- Misc ----
+*.hprof
+*.apk.idsig
+
+# 注意：以下文件必须提交，切勿加入忽略
+#   gradlew
+#   gradlew.bat
+#   gradle/wrapper/gradle-wrapper.jar
+#   gradle/wrapper/gradle-wrapper.properties
