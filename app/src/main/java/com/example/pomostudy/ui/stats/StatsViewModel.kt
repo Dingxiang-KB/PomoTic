@@ -36,7 +36,10 @@ data class StatsUiState(
     val weekly: List<DailyPoint> = emptyList(),
     val goalMinutes: Int = 120,
     val loading: Boolean = false
-)
+) {
+    /** 是否展示学习曲线（仅日/周维度）。 */
+    val showWeekly: Boolean get() = period != StatsPeriod.MONTH
+}
 
 /** 统计页 ViewModel：按日/周/月聚合各待办学习时长，支持回溯上一周期，并给出本周曲线。 */
 class StatsViewModel(private val container: AppContainer) : ViewModel() {
@@ -117,16 +120,20 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
             )
         }
 
-        // 当前自然周曲线（始终为本周）
-        val weekStart = TimeUtils.startOfWeek(now)
-        val weekEnd = TimeUtils.endOfWeek(now)
-        val weekRecords = container.studyRepository.recordsInRange(weekStart, weekEnd)
-        val daily = LongArray(7)
-        weekRecords.forEach { r ->
-            val idx = TimeUtils.dayIndexFromMonday(r.startTime)
-            if (idx in 0..6) daily[idx] += r.durationSeconds
+        // 学习曲线：仅在“日/周”维度展示，且跟随所选周期（其所在周）与回溯偏移；月维度不展示
+        val weekly: List<DailyPoint> = if (s.period == StatsPeriod.MONTH) {
+            emptyList()
+        } else {
+            val weekStart = TimeUtils.startOfWeek(anchor)
+            val weekEnd = TimeUtils.endOfWeek(anchor)
+            val weekRecords = container.studyRepository.recordsInRange(weekStart, weekEnd)
+            val daily = LongArray(7)
+            weekRecords.forEach { r ->
+                val idx = TimeUtils.dayIndexFromMonday(r.startTime)
+                if (idx in 0..6) daily[idx] += r.durationSeconds
+            }
+            (0..6).map { i -> DailyPoint(TimeUtils.WEEKDAY_LABELS[i], daily[i]) }
         }
-        val weekly = (0..6).map { i -> DailyPoint(TimeUtils.WEEKDAY_LABELS[i], daily[i]) }
 
         _state.update {
             it.copy(

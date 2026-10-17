@@ -14,13 +14,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-/** 日历页 ViewModel：提供待办、学习记录、标签用于按天渲染。 */
-class CalendarViewModel(container: AppContainer) : ViewModel() {
-
-    init {
-        // 进入日历页时，处理“顺延到次日”的过期未完成待办
-        viewModelScope.launch { container.todoRepository.carryOverOverdueTodos() }
-    }
+/** 日历页 ViewModel：提供待办、学习记录、标签，并支持在日历里增删改当日待办。 */
+class CalendarViewModel(private val container: AppContainer) : ViewModel() {
 
     val todos: StateFlow<List<TodoEntity>> = container.todoRepository.todos
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -30,6 +25,22 @@ class CalendarViewModel(container: AppContainer) : ViewModel() {
 
     val tags: StateFlow<List<TagEntity>> = container.tagRepository.tags
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun save(todo: TodoEntity) = viewModelScope.launch {
+        if (todo.id == 0L) container.todoRepository.addTodo(todo) else container.todoRepository.update(todo)
+    }
+
+    fun toggle(todo: TodoEntity) = viewModelScope.launch {
+        container.todoRepository.toggleCompleted(todo)
+    }
+
+    fun deleteInstance(todo: TodoEntity) = viewModelScope.launch {
+        container.todoRepository.deleteInstance(todo)
+    }
+
+    fun deleteSeries(seriesId: Long) = viewModelScope.launch {
+        container.todoRepository.deleteSeries(seriesId)
+    }
 
     companion object {
         fun factory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {

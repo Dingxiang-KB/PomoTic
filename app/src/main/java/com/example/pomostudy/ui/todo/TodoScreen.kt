@@ -1,6 +1,11 @@
 package com.example.pomostudy.ui.todo
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,31 +17,30 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,8 +48,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.pomostudy.data.local.entity.TagEntity
@@ -59,35 +68,71 @@ import com.example.pomostudy.ui.components.SimpleDropdown
 import com.example.pomostudy.ui.components.TagChip
 import com.example.pomostudy.util.TimeUtils
 
-/** 待办页：筛选 + 列表 + 新增/编辑/删除/勾选。 */
+/** 待办页：当周日期条 + 折叠筛选 + 列表 + 新增/编辑/删除。 */
 @Composable
 fun TodoScreen(container: AppContainer) {
     val vm: TodoViewModel = viewModel(factory = TodoViewModel.factory(container))
     val todos by vm.filtered.collectAsStateWithLifecycle()
     val tags by vm.tags.collectAsStateWithLifecycle()
     val filters by vm.filters.collectAsStateWithLifecycle()
+    val weekOffset by vm.weekOffset.collectAsStateWithLifecycle()
+
+    val now = remember { System.currentTimeMillis() }
+    val todayStart = remember { TimeUtils.startOfDay(now) }
+    val weekStart = remember(weekOffset) {
+        TimeUtils.startOfWeek(TimeUtils.addDays(now, weekOffset * 7))
+    }
+    val days = remember(weekStart) { (0..6).map { TimeUtils.startOfDay(TimeUtils.addDays(weekStart, it)) } }
 
     var showEditor by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<TodoEntity?>(null) }
+    var editorDueDate by remember { mutableStateOf<Long?>(null) }
     var pendingDelete by remember { mutableStateOf<TodoEntity?>(null) }
+    var filtersExpanded by remember { mutableStateOf(false) }
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            TodoFilterBar(
-                filters = filters,
-                tags = tags,
-                onTogglePriority = vm::togglePriorityFilter,
-                onSetTag = vm::setTagFilter,
-                onSetCompletion = vm::setCompletionFilter,
-                onSetDate = vm::setDateFilter
+            WeekStrip(
+                days = days,
+                selectedDay = filters.selectedDay,
+                todayStart = todayStart,
+                onSelectDay = { vm.selectDay(it) },
+                onShiftWeek = { vm.shiftWeek(it) },
+                onShowAll = { vm.selectDay(null) }
             )
 
-            Crossfade(
-                targetState = todos.isEmpty(),
-                label = "todoList"
-            ) { isEmpty ->
+            // 折叠筛选
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = { filtersExpanded = !filtersExpanded }) {
+                    Text("筛选")
+                    Icon(
+                        imageVector = if (filtersExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                        contentDescription = null
+                    )
+                }
+            }
+            AnimatedVisibility(
+                visible = filtersExpanded,
+                enter = expandVertically(),
+                exit = shrinkVertically()
+            ) {
+                TodoFilterPanel(
+                    filters = filters,
+                    tags = tags,
+                    onTogglePriority = vm::togglePriorityFilter,
+                    onSetTag = vm::setTagFilter,
+                    onSetCompletion = vm::setCompletionFilter
+                )
+            }
+
+            Crossfade(targetState = todos.isEmpty(), label = "todoList") { isEmpty ->
                 if (isEmpty) {
-                    EmptyHint("暂无符合条件的待办，点击右下角 + 新增")
+                    EmptyHint("这一天没有待办，点击右下角 + 新增")
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
@@ -100,7 +145,7 @@ fun TodoScreen(container: AppContainer) {
                                 todo = todo,
                                 tags = tags,
                                 onToggle = { vm.toggle(todo) },
-                                onEdit = { editing = todo; showEditor = true },
+                                onEdit = { editing = todo; editorDueDate = null; showEditor = true },
                                 onDelete = { pendingDelete = todo }
                             )
                         }
@@ -110,7 +155,7 @@ fun TodoScreen(container: AppContainer) {
         }
 
         FloatingActionButton(
-            onClick = { editing = null; showEditor = true },
+            onClick = { editing = null; editorDueDate = filters.selectedDay; showEditor = true },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(16.dp)
@@ -122,52 +167,157 @@ fun TodoScreen(container: AppContainer) {
     if (showEditor) {
         TodoEditorDialog(
             initial = editing,
+            defaultDueDate = editorDueDate,
             tags = tags,
             onDismiss = { showEditor = false },
             onSave = { entity ->
-                if (entity.id == 0L) {
-                    vm.add(
-                        entity.title, entity.note, entity.dueDate, entity.tagId,
-                        entity.priority, entity.repeatRule, entity.carryOver
-                    )
-                } else {
-                    vm.update(entity)
-                }
+                vm.save(entity)
                 showEditor = false
             }
         )
     }
 
-    // 删除确认
     val toDelete = pendingDelete
     if (toDelete != null) {
-        AlertDialog(
-            onDismissRequest = { pendingDelete = null },
-            title = { Text("删除待办") },
-            text = { Text("确定删除「${toDelete.title}」吗？此操作不可撤销。") },
-            confirmButton = {
-                TextButton(onClick = {
-                    vm.delete(toDelete)
-                    pendingDelete = null
-                }) { Text("删除") }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingDelete = null }) { Text("取消") }
+        val isDaily = toDelete.repeatRule == RepeatRule.DAILY && toDelete.seriesId != null
+        if (isDaily) {
+            AlertDialog(
+                onDismissRequest = { pendingDelete = null },
+                title = { Text("删除每日待办") },
+                text = { Text("「${toDelete.title}」是每日重复待办，请选择要删除的范围：") },
+                confirmButton = {
+                    Row {
+                        TextButton(onClick = {
+                            vm.deleteInstance(toDelete)
+                            pendingDelete = null
+                        }) { Text("仅当日") }
+                        TextButton(onClick = {
+                            toDelete.seriesId?.let { vm.deleteSeries(it) }
+                            pendingDelete = null
+                        }) { Text("全部") }
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingDelete = null }) { Text("取消") }
+                }
+            )
+        } else {
+            AlertDialog(
+                onDismissRequest = { pendingDelete = null },
+                title = { Text("删除待办") },
+                text = { Text("确定删除「${toDelete.title}」吗？此操作不可撤销。") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        vm.deleteInstance(toDelete)
+                        pendingDelete = null
+                    }) { Text("删除") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingDelete = null }) { Text("取消") }
+                }
+            )
+        }
+    }
+}
+
+/** 当周日期条：左右滑动切换周，点击某天筛选当天待办。 */
+@Composable
+private fun WeekStrip(
+    days: List<Long>,
+    selectedDay: Long?,
+    todayStart: Long,
+    onSelectDay: (Long?) -> Unit,
+    onShiftWeek: (Int) -> Unit,
+    onShowAll: () -> Unit
+) {
+    var dragAccum by remember { mutableStateOf(0f) }
+
+    Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = { onShiftWeek(-1) }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "上一周")
             }
-        )
+            Text(
+                text = "${TimeUtils.formatDate(days.first()).takeLast(5)} ~ ${TimeUtils.formatDate(days.last()).takeLast(5)}",
+                modifier = Modifier.weight(1f),
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            IconButton(onClick = { onShiftWeek(1) }) {
+                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "下一周")
+            }
+            TextButton(onClick = onShowAll) { Text("全部") }
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .pointerInput(Unit) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { dragAccum = 0f },
+                        onHorizontalDrag = { _, dx -> dragAccum += dx },
+                        onDragEnd = {
+                            if (dragAccum > 140f) onShiftWeek(-1)
+                            else if (dragAccum < -140f) onShiftWeek(1)
+                        }
+                    )
+                },
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            days.forEachIndexed { index, day ->
+                val selected = selectedDay == day
+                val isToday = day == todayStart
+                val bg = when {
+                    selected -> MaterialTheme.colorScheme.primary
+                    isToday -> MaterialTheme.colorScheme.secondaryContainer
+                    else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                }
+                val fg = when {
+                    selected -> MaterialTheme.colorScheme.onPrimary
+                    else -> MaterialTheme.colorScheme.onSurface
+                }
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(bg)
+                        .padding(vertical = 6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = TimeUtils.WEEKDAY_LABELS[index],
+                        style = MaterialTheme.typography.labelSmall,
+                        color = fg
+                    )
+                    Text(
+                        text = TimeUtils.formatDate(day).takeLast(2),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+                        color = fg
+                    )
+                }
+            }
+        }
+        if (selectedDay == null) {
+            Text(
+                text = "当前显示全部待办",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        }
     }
 }
 
 @Composable
-private fun TodoFilterBar(
+private fun TodoFilterPanel(
     filters: TodoFilters,
     tags: List<TagEntity>,
     onTogglePriority: (Priority) -> Unit,
     onSetTag: (Long?) -> Unit,
-    onSetCompletion: (CompletionFilter) -> Unit,
-    onSetDate: (DateFilter) -> Unit
+    onSetCompletion: (CompletionFilter) -> Unit
 ) {
-    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+    Column(Modifier.padding(horizontal = 16.dp)) {
         Row(
             modifier = Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -190,20 +340,6 @@ private fun TodoFilterBar(
                     selected = p in filters.priorities,
                     onClick = { onTogglePriority(p) },
                     label = { Text("优先级${priorityLabel(p)}") }
-                )
-            }
-        }
-        Spacer(Modifier.height(4.dp))
-        Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            DateFilter.entries.forEach { d ->
-                FilterChip(
-                    selected = filters.date == d,
-                    onClick = { onSetDate(d) },
-                    label = { Text(dateLabel(d)) }
                 )
             }
         }
@@ -269,158 +405,24 @@ private fun TodoItem(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    if (todo.repeatRule != RepeatRule.NONE) {
+                    if (todo.repeatRule == RepeatRule.DAILY) {
                         Icon(
                             Icons.Filled.Repeat,
-                            contentDescription = repeatLabel(todo.repeatRule),
+                            contentDescription = "每日重复",
                             modifier = Modifier.height(16.dp)
                         )
+                        todo.endDate?.let {
+                            Text(
+                                text = "至 ${TimeUtils.formatDate(it)}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
             IconButton(onClick = onEdit) { Icon(Icons.Filled.Edit, contentDescription = "编辑") }
             IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, contentDescription = "删除") }
-        }
-    }
-}
-
-/** 新增 / 编辑待办弹窗。 */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun TodoEditorDialog(
-    initial: TodoEntity?,
-    tags: List<TagEntity>,
-    onDismiss: () -> Unit,
-    onSave: (TodoEntity) -> Unit
-) {
-    var title by remember { mutableStateOf(initial?.title ?: "") }
-    var note by remember { mutableStateOf(initial?.note ?: "") }
-    var dueDate by remember { mutableStateOf(initial?.dueDate) }
-    var tagId by remember { mutableStateOf(initial?.tagId) }
-    var priority by remember { mutableStateOf(initial?.priority ?: Priority.MEDIUM) }
-    var repeatRule by remember { mutableStateOf(initial?.repeatRule ?: RepeatRule.NONE) }
-    var carryOver by remember { mutableStateOf(initial?.carryOver ?: false) }
-    var showDatePicker by remember { mutableStateOf(false) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    onSave(
-                        (initial ?: TodoEntity(title = "")).copy(
-                            title = title.trim(),
-                            note = note.trim(),
-                            dueDate = dueDate,
-                            tagId = tagId,
-                            priority = priority,
-                            repeatRule = repeatRule,
-                            carryOver = carryOver
-                        )
-                    )
-                },
-                enabled = title.isNotBlank()
-            ) { Text("保存") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
-        title = { Text(if (initial == null) "新增待办" else "编辑待办") },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text("标题") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = note,
-                    onValueChange = { note = it },
-                    label = { Text("备注") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 2
-                )
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedButton(onClick = { showDatePicker = true }) {
-                        Icon(Icons.Filled.DateRange, contentDescription = null)
-                        Text(
-                            text = dueDate?.let { TimeUtils.formatDate(it) } ?: "选择截止日期",
-                            modifier = Modifier.padding(start = 4.dp)
-                        )
-                    }
-                    if (dueDate != null) {
-                        TextButton(onClick = { dueDate = null }) { Text("清除") }
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-                val selectedTag = tags.firstOrNull { it.id == tagId }
-                SimpleDropdown(
-                    label = "标签",
-                    items = tags,
-                    selected = selectedTag,
-                    itemLabel = { it.name },
-                    onSelect = { tagId = it.id },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = "未选择"
-                )
-                if (selectedTag != null) {
-                    TextButton(onClick = { tagId = null }) { Text("清除标签") }
-                }
-                Spacer(Modifier.height(8.dp))
-                Text("优先级", style = MaterialTheme.typography.labelMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Priority.entries.reversed().forEach { p ->
-                        FilterChip(
-                            selected = priority == p,
-                            onClick = { priority = p },
-                            label = { Text(priorityLabel(p)) }
-                        )
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-                Text("重复", style = MaterialTheme.typography.labelMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    RepeatRule.entries.forEach { r ->
-                        FilterChip(
-                            selected = repeatRule == r,
-                            onClick = { repeatRule = r },
-                            label = { Text(repeatLabel(r)) }
-                        )
-                    }
-                }
-                if (repeatRule != RepeatRule.DAILY) {
-                    Spacer(Modifier.height(8.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(
-                            checked = carryOver,
-                            onCheckedChange = { carryOver = it }
-                        )
-                        Text(
-                            text = "当天未完成，顺延到下一天",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                }
-            }
-        }
-    )
-
-    if (showDatePicker) {
-        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = dueDate)
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    dueDate = datePickerState.selectedDateMillis
-                    showDatePicker = false
-                }) { Text("确定") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) { Text("取消") }
-            }
-        ) {
-            DatePicker(state = datePickerState)
         }
     }
 }
@@ -431,20 +433,8 @@ private fun completionLabel(c: CompletionFilter): String = when (c) {
     CompletionFilter.DONE -> "已完成"
 }
 
-private fun dateLabel(d: DateFilter): String = when (d) {
-    DateFilter.ALL -> "不限日期"
-    DateFilter.TODAY -> "今天"
-    DateFilter.WEEK -> "本周"
-}
-
 private fun priorityLabel(p: Priority): String = when (p) {
     Priority.HIGH -> "高"
     Priority.MEDIUM -> "中"
     Priority.LOW -> "低"
-}
-
-private fun repeatLabel(r: RepeatRule): String = when (r) {
-    RepeatRule.NONE -> "不重复"
-    RepeatRule.DAILY -> "每日"
-    RepeatRule.MONTHLY -> "每月"
 }

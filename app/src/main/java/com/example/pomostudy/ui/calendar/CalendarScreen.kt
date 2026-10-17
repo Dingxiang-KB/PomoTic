@@ -1,12 +1,13 @@
 package com.example.pomostudy.ui.calendar
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,13 +23,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -52,9 +59,11 @@ import com.example.pomostudy.data.local.entity.StudyRecordEntity
 import com.example.pomostudy.data.local.entity.TagEntity
 import com.example.pomostudy.data.local.entity.TodoEntity
 import com.example.pomostudy.di.AppContainer
+import com.example.pomostudy.domain.model.RepeatRule
 import com.example.pomostudy.ui.components.PriorityBadge
 import com.example.pomostudy.ui.components.TagChip
 import com.example.pomostudy.ui.theme.toComposeColor
+import com.example.pomostudy.ui.todo.TodoEditorDialog
 import com.example.pomostudy.util.TimeUtils
 import com.kizitonwose.calendar.compose.HorizontalCalendar
 import com.kizitonwose.calendar.compose.rememberCalendarState
@@ -68,7 +77,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 
-/** 月日历视图：周一到周日横向排布，格子内展示当天 Todo，标识区分待办与已完成学习记录。 */
+/** 月日历视图：周一到周日排布，格子内展示当天待办；点击某天可查看并增删改当天待办。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarScreen(container: AppContainer) {
@@ -86,7 +95,6 @@ fun CalendarScreen(container: AppContainer) {
         firstDayOfWeek = DayOfWeek.MONDAY
     )
 
-    // 按天分组
     val todosByDate = remember(todos) {
         todos.filter { it.dueDate != null }.groupBy { millisToLocalDate(it.dueDate!!) }
     }
@@ -96,9 +104,12 @@ fun CalendarScreen(container: AppContainer) {
     val tagMap = remember(tags) { tags.associateBy { it.id } }
 
     var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
+    var showEditor by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<TodoEntity?>(null) }
+    var editorDueDate by remember { mutableStateOf<Long?>(null) }
+    var pendingDelete by remember { mutableStateOf<TodoEntity?>(null) }
 
     Column(Modifier.fillMaxSize()) {
-        // 月份导航
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -123,7 +134,6 @@ fun CalendarScreen(container: AppContainer) {
             }
         }
 
-        // 图例
         Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -133,7 +143,6 @@ fun CalendarScreen(container: AppContainer) {
             LegendDot(color = Color(0xFF43A047), text = "已完成番茄记录")
         }
 
-        // 周一到周日标题
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
             daysOfWeek(DayOfWeek.MONDAY).forEach { d ->
                 Text(
@@ -175,9 +184,64 @@ fun CalendarScreen(container: AppContainer) {
                 date = sheetDate,
                 todos = todosByDate[sheetDate].orEmpty(),
                 records = recordsByDate[sheetDate].orEmpty(),
-                tagMap = tagMap
+                tagMap = tagMap,
+                onAdd = {
+                    editing = null
+                    editorDueDate = localDateToMillis(sheetDate)
+                    showEditor = true
+                },
+                onEdit = { todo -> editing = todo; editorDueDate = null; showEditor = true },
+                onToggle = { todo -> vm.toggle(todo) },
+                onDelete = { todo -> pendingDelete = todo }
             )
         }
+    }
+
+    if (showEditor) {
+        TodoEditorDialog(
+            initial = editing,
+            defaultDueDate = editorDueDate,
+            tags = tags,
+            onDismiss = { showEditor = false },
+            onSave = { entity ->
+                vm.save(entity)
+                showEditor = false
+            }
+        )
+    }
+
+    val toDelete = pendingDelete
+    if (toDelete != null) {
+        val isDaily = toDelete.repeatRule == RepeatRule.DAILY && toDelete.seriesId != null
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text(if (isDaily) "删除每日待办" else "删除待办") },
+            text = {
+                Text(
+                    if (isDaily) "「${toDelete.title}」是每日重复待办，请选择删除范围："
+                    else "确定删除「${toDelete.title}」吗？"
+                )
+            },
+            confirmButton = {
+                if (isDaily) {
+                    Row {
+                        TextButton(onClick = {
+                            vm.deleteInstance(toDelete); pendingDelete = null
+                        }) { Text("仅当日") }
+                        TextButton(onClick = {
+                            toDelete.seriesId?.let { vm.deleteSeries(it) }; pendingDelete = null
+                        }) { Text("全部") }
+                    }
+                } else {
+                    TextButton(onClick = {
+                        vm.deleteInstance(toDelete); pendingDelete = null
+                    }) { Text("删除") }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) { Text("取消") }
+            }
+        )
     }
 }
 
@@ -213,22 +277,13 @@ private fun CalendarDayCell(
             .padding(4.dp)
     ) {
         Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = day.date.dayOfMonth.toString(),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
-                    color = if (isOutDate) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                    else MaterialTheme.colorScheme.onSurface
-                )
-                if (todos.isNotEmpty()) {
-                    Text(
-                        text = " ${todos.size}项",
-                        fontSize = 8.sp,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
+            Text(
+                text = day.date.dayOfMonth.toString(),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+                color = if (isOutDate) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                else MaterialTheme.colorScheme.onSurface
+            )
             // 待办文本（最多 3 条，完成划线）
             todos.take(3).forEach { todo ->
                 val tagColor = todo.tagId?.let { tagMap[it]?.color?.toComposeColor() }
@@ -245,13 +300,6 @@ private fun CalendarDayCell(
                         modifier = Modifier.padding(start = 2.dp)
                     )
                 }
-            }
-            if (todos.size > 3) {
-                Text(
-                    text = "+${todos.size - 3} 项待办",
-                    fontSize = 9.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
             // 学习记录标识
             if (records.isNotEmpty()) {
@@ -288,36 +336,58 @@ private fun DayDetailContent(
     date: LocalDate,
     todos: List<TodoEntity>,
     records: List<StudyRecordEntity>,
-    tagMap: Map<Long, TagEntity>
+    tagMap: Map<Long, TagEntity>,
+    onAdd: () -> Unit,
+    onEdit: (TodoEntity) -> Unit,
+    onToggle: (TodoEntity) -> Unit,
+    onDelete: (TodoEntity) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+        contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         item {
-            Text(
-                text = "${date.year}年${date.monthValue}月${date.dayOfMonth}日",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-        item {
-            Text("当日待办（${todos.size}）", style = MaterialTheme.typography.titleMedium)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${date.year}年${date.monthValue}月${date.dayOfMonth}日",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+                TextButton(onClick = onAdd) {
+                    Icon(Icons.Filled.Add, contentDescription = null)
+                    Text("添加待办")
+                }
+            }
         }
         if (todos.isEmpty()) {
-            item { Text("无", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            item { Text("当日暂无待办", color = MaterialTheme.colorScheme.onSurfaceVariant) }
         } else {
             items(todos, key = { it.id }) { todo ->
+                val tag = todo.tagId?.let { tagMap[it] }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    PriorityBadge(todo.priority)
-                    Text(
-                        text = todo.title,
-                        modifier = Modifier.padding(start = 8.dp).weight(1f),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    val tag = todo.tagId?.let { tagMap[it] }
-                    if (tag != null) TagChip(tag.name, tag.color)
+                    Checkbox(checked = todo.isCompleted, onCheckedChange = { onToggle(todo) })
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = todo.title,
+                            style = MaterialTheme.typography.bodyMedium,
+                            textDecoration = if (todo.isCompleted) TextDecoration.LineThrough else null
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            PriorityBadge(todo.priority)
+                            if (tag != null) TagChip(tag.name, tag.color)
+                        }
+                    }
+                    IconButton(onClick = { onEdit(todo) }) {
+                        Icon(Icons.Filled.Edit, contentDescription = "编辑")
+                    }
+                    IconButton(onClick = { onDelete(todo) }) {
+                        Icon(Icons.Filled.Delete, contentDescription = "删除")
+                    }
                 }
             }
         }
@@ -357,6 +427,9 @@ private fun DayDetailContent(
 
 private fun millisToLocalDate(millis: Long): LocalDate =
     Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
+
+private fun localDateToMillis(date: LocalDate): Long =
+    date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
 private fun weekDayLabel(day: DayOfWeek): String = when (day) {
     DayOfWeek.MONDAY -> "一"

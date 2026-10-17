@@ -20,7 +20,7 @@ import com.example.pomostudy.data.local.entity.TodoEntity
  */
 @Database(
     entities = [TagEntity::class, TodoEntity::class, StudyRecordEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -33,10 +33,18 @@ abstract class PomoDatabase : RoomDatabase() {
     companion object {
         private const val DB_NAME = "pomo_study.db"
 
-        /** v1 -> v2：新增待办顺延字段 carryOver。 */
+        /** v1 -> v2：新增待办顺延字段 carryOver（历史遗留）。 */
         private val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE todos ADD COLUMN carryOver INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        /** v2 -> v3：每日重复系列字段 endDate / seriesId。 */
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE todos ADD COLUMN endDate INTEGER")
+                db.execSQL("ALTER TABLE todos ADD COLUMN seriesId INTEGER")
             }
         }
 
@@ -49,7 +57,7 @@ abstract class PomoDatabase : RoomDatabase() {
                     context.applicationContext,
                     PomoDatabase::class.java,
                     DB_NAME
-                ).addMigrations(MIGRATION_1_2)
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build().also { INSTANCE = it }
             }
     }

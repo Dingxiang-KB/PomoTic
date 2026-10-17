@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -116,17 +117,22 @@ fun StatsScreen(container: AppContainer) {
                     )
                 }
                 IconButton(
+                    onClick = { vm.goToCurrent() },
+                    enabled = !state.isCurrent,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.Today,
+                        contentDescription = "回到当前",
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                IconButton(
                     onClick = { vm.moveOffset(1) },
                     enabled = !state.isCurrent
                 ) {
                     Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "下一周期")
                 }
-            }
-            if (!state.isCurrent) {
-                TextButton(
-                    onClick = { vm.goToCurrent() },
-                    modifier = Modifier.padding(start = 8.dp, bottom = 4.dp)
-                ) { Text("回到当前") }
             }
         }
 
@@ -220,18 +226,20 @@ fun StatsScreen(container: AppContainer) {
             }
         }
 
-        Spacer(Modifier.height(16.dp))
-        SectionTitle("本周学习曲线（周一 ~ 周日）")
-        Card(Modifier.fillMaxWidth()) {
-            WeeklyLineChart(
-                points = state.weekly,
-                lineColor = lineColor,
-                textColor = textColor,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(220.dp)
-                    .padding(8.dp)
-            )
+        if (state.showWeekly) {
+            Spacer(Modifier.height(16.dp))
+            SectionTitle("学习曲线（周一 ~ 周日）")
+            Card(Modifier.fillMaxWidth()) {
+                WeeklyLineChart(
+                    points = state.weekly,
+                    lineColor = lineColor,
+                    textColor = textColor,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(220.dp)
+                        .padding(8.dp)
+                )
+            }
         }
         Spacer(Modifier.height(24.dp))
     }

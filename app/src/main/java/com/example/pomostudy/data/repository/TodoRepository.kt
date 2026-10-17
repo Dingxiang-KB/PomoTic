@@ -6,16 +6,46 @@ import com.example.pomostudy.domain.model.RepeatRule
 import com.example.pomostudy.util.TimeUtils
 import kotlinx.coroutines.flow.Flow
 
-/** 待办数据仓库：统一管理待办的增删改查与重复规则处理。 */
+/** 待办数据仓库：统一管理待办的增删改查与每日重复逻辑。 */
 class TodoRepository(private val todoDao: TodoDao) {
 
     val todos: Flow<List<TodoEntity>> = todoDao.observeAll()
 
-    suspend fun add(todo: TodoEntity): Long = todoDao.insert(todo)
+    /**
+     * 新增待办。若为每日重复，则赋予一个新的系列 ID（取首条实例的 id）。
+     */
+    suspend fun addTodo(todo: TodoEntity): Long {
+        val insertEntity =
+            if (todo.repeatRule == RepeatRule.DAILY && todo.seriesId == null) {
+                todo.copy(seriesId = null)
+            } else {
+                todo
+            }
+        val id = todoDao.insert(insertEntity)
+        if (todo.repeatRule == RepeatRule.DAILY && todo.seriesId == null) {
+            todoDao.setSeriesId(id, id)
+        }
+        return id
+    }
 
-    suspend fun update(todo: TodoEntity) = todoDao.update(todo)
+    suspend fun update(todo: TodoEntity) {
+        // 由“一次性/其他”切换为“每日重复”且尚无系列时，补上系列 ID
+        val entity =
+            if (todo.repeatRule == RepeatRule.DAILY && todo.seriesId == null) {
+                todo.copy(seriesId = todo.id)
+            } else {
+                todo
+            }
+        todoDao.update(entity)
+    }
 
     suspend fun delete(todo: TodoEntity) = todoDao.delete(todo)
+
+    /** 仅删除某一条实例（“删除当日”）。 */
+    suspend fun deleteInstance(todo: TodoEntity) = todoDao.delete(todo)
+
+    /** 删除整个每日重复系列（“删除全部”）。 */
+    suspend fun deleteSeries(seriesId: Long) = todoDao.deleteSeries(seriesId)
 
     suspend fun getById(id: Long): TodoEntity? = todoDao.getById(id)
 
@@ -25,38 +55,30 @@ class TodoRepository(private val todoDao: TodoDao) {
         todoDao.observeByDateRange(start, end)
 
     /**
-     * 顺延：对“非每日重复”且开启 carryOver 的待办，若已过却未完成，则把截止日期移动到今天，
-     * 使其在当天继续显示（即“接续到下一天”）。
-     */
-    suspend fun carryOverOverdueTodos() {
-        val todayStart = TimeUtils.startOfDay(System.currentTimeMillis())
-        todoDao.getOverdueCarryOver(todayStart).forEach { todo ->
-            todoDao.setDueDate(todo.id, todayStart)
-        }
-    }
-
-    /**
      * 勾选/取消完成。
-     * 重复待办（每日/每月）在“本次勾选为完成”时，仅标记当前这一条实例完成，
-     * 并且另外生成下一条待完成实例，因此不影响后续生成的重复任务。
+     * 仅“每日重复(DAILY)”在本次勾选为完成时，才生成“次日”实例；
+     * 且需满足：未超过结束日期、且该日实例尚不存在（避免重复生成）。
+     * 不重复任务勾选完成不会产生任何新待办。
      */
     suspend fun toggleCompleted(todo: TodoEntity) {
         val nowCompleted = !todo.isCompleted
         todoDao.setCompleted(todo.id, nowCompleted)
 
-        if (nowCompleted && todo.repeatRule != RepeatRule.NONE) {
-            val base = todo.dueDate ?: System.currentTimeMillis()
-            val nextDue = when (todo.repeatRule) {
-                RepeatRule.DAILY -> TimeUtils.addDays(base, 1)
-                RepeatRule.MONTHLY -> TimeUtils.addOneMonth(base)
-                RepeatRule.NONE -> base
-            }
+        if (!nowCompleted || todo.repeatRule != RepeatRule.DAILY) return
+
+        val base = todo.dueDate ?: TimeUtils.startOfDay(System.currentTimeMillis())
+        val nextDue = TimeUtils.addDays(base, 1)
+        val withinEnd = todo.endDate == null || nextDue <= todo.endDate
+        if (!withinEnd) return
+
+        val series = todo.seriesId ?: todo.id
+        if (todoDao.countInSeriesOnDate(series, nextDue) == 0) {
             todoDao.insert(
                 todo.copy(
                     id = 0L,
                     isCompleted = false,
                     dueDate = nextDue,
-                    createdAt = System.currentTimeMillis()
+                    seriesId = series
                 )
             )
         }
