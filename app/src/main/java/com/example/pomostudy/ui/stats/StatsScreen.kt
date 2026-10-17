@@ -1,5 +1,7 @@
 package com.example.pomostudy.ui.stats
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,8 +15,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.background
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
@@ -23,6 +26,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -40,7 +44,7 @@ import com.example.pomostudy.ui.theme.toComposeColor
 import com.example.pomostudy.util.TimeUtils
 import java.time.YearMonth
 
-/** 统计页：按日/周/月聚合标签学习时长 + 饼图可视化 + 每日目标进度。 */
+/** 统计页：按日/周/月聚合“各待办”学习时长（支持回溯）+ 饼图 + 本周曲线 + 目标进度。 */
 @Composable
 fun StatsScreen(container: AppContainer) {
     val vm: StatsViewModel = viewModel(factory = StatsViewModel.factory(container))
@@ -52,7 +56,11 @@ fun StatsScreen(container: AppContainer) {
         StatsPeriod.MONTH -> YearMonth.now().lengthOfMonth()
     }
     val goalSeconds = (state.goalMinutes * 60L * periodDays).coerceAtLeast(1L)
-    val progress = (state.totalSeconds.toFloat() / goalSeconds.toFloat()).coerceIn(0f, 1f)
+    val targetProgress = (state.totalSeconds.toFloat() / goalSeconds.toFloat()).coerceIn(0f, 1f)
+    val progress by animateFloatAsState(targetValue = targetProgress, label = "goalProgress")
+
+    val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
+    val lineColor = MaterialTheme.colorScheme.primary.toArgb()
 
     Column(
         modifier = Modifier
@@ -81,6 +89,48 @@ fun StatsScreen(container: AppContainer) {
         }
 
         Spacer(Modifier.height(8.dp))
+        // 回溯控制
+        Card(Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { vm.moveOffset(-1) }) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "上一周期")
+                }
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = state.rangeLabel,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = if (state.isCurrent) "当前周期" else "回溯查看",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                IconButton(
+                    onClick = { vm.moveOffset(1) },
+                    enabled = !state.isCurrent
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "下一周期")
+                }
+            }
+            if (!state.isCurrent) {
+                TextButton(
+                    onClick = { vm.goToCurrent() },
+                    modifier = Modifier.padding(start = 8.dp, bottom = 4.dp)
+                ) { Text("回到当前") }
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp)) {
                 Text(
@@ -126,14 +176,14 @@ fun StatsScreen(container: AppContainer) {
         }
 
         Spacer(Modifier.height(16.dp))
-        SectionTitle("各标签时间分布")
+        SectionTitle("各待办时间分布")
         if (state.slices.isEmpty()) {
             EmptyHint("当前时间段暂无学习记录")
         } else {
             Card(Modifier.fillMaxWidth()) {
-                TagPieChart(
+                StatPieChart(
                     slices = state.slices,
-                    textColor = MaterialTheme.colorScheme.onSurface.toArgb(),
+                    textColor = textColor,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(260.dp)
@@ -168,6 +218,20 @@ fun StatsScreen(container: AppContainer) {
                     )
                 }
             }
+        }
+
+        Spacer(Modifier.height(16.dp))
+        SectionTitle("本周学习曲线（周一 ~ 周日）")
+        Card(Modifier.fillMaxWidth()) {
+            WeeklyLineChart(
+                points = state.weekly,
+                lineColor = lineColor,
+                textColor = textColor,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(220.dp)
+                    .padding(8.dp)
+            )
         }
         Spacer(Modifier.height(24.dp))
     }

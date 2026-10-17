@@ -2,6 +2,7 @@ package com.example.pomostudy.data.repository
 
 import com.example.pomostudy.data.local.dao.StudyRecordDao
 import com.example.pomostudy.data.local.dao.TagDuration
+import com.example.pomostudy.data.local.dao.TodoDuration
 import com.example.pomostudy.data.local.entity.StudyRecordEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -29,4 +30,8 @@ class StudyRepository(private val studyRecordDao: StudyRecordDao) {
     /** 按标签聚合时间段内学习总时长。 */
     suspend fun totalSecondsByTag(start: Long, end: Long): List<TagDuration> =
         studyRecordDao.totalSecondsByTag(start, end)
+
+    /** 按待办聚合时间段内学习总时长。 */
+    suspend fun totalSecondsByTodo(start: Long, end: Long): List<TodoDuration> =
+        studyRecordDao.totalSecondsByTodo(start, end)
 }

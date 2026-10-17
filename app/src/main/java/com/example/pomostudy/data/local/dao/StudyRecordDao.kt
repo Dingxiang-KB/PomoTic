@@ -13,6 +13,12 @@ data class TagDuration(
     val totalSeconds: Long
 )
 
+/** 按待办聚合的时长查询结果。todoId 为空表示“未绑定待办”。 */
+data class TodoDuration(
+    val todoId: Long?,
+    val totalSeconds: Long
+)
+
 @Dao
 interface StudyRecordDao {
 
@@ -39,6 +45,12 @@ interface StudyRecordDao {
             "WHERE startTime >= :start AND startTime <= :end GROUP BY tagId ORDER BY totalSeconds DESC"
     )
     suspend fun totalSecondsByTag(start: Long, end: Long): List<TagDuration>
+
+    @Query(
+        "SELECT todoId AS todoId, SUM(durationSeconds) AS totalSeconds FROM study_records " +
+            "WHERE startTime >= :start AND startTime <= :end GROUP BY todoId ORDER BY totalSeconds DESC"
+    )
+    suspend fun totalSecondsByTodo(start: Long, end: Long): List<TodoDuration>
 
     @Query("SELECT * FROM study_records WHERE todoId = :todoId ORDER BY startTime DESC")
     fun observeByTodo(todoId: Long): Flow<List<StudyRecordEntity>>

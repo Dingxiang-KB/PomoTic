@@ -67,6 +67,9 @@ object TimeUtils {
     fun addDays(millis: Long, days: Int): Long =
         calendar(millis).apply { add(Calendar.DAY_OF_MONTH, days) }.timeInMillis
 
+    fun addMonths(millis: Long, months: Int): Long =
+        calendar(millis).apply { add(Calendar.MONTH, months) }.timeInMillis
+
     fun formatDate(millis: Long): String {
         val c = calendar(millis)
         return String.format(
@@ -84,6 +87,19 @@ object TimeUtils {
     }
 
     fun formatDateTime(millis: Long): String = "${formatDate(millis)} ${formatTime(millis)}"
+
+    fun formatYearMonth(millis: Long): String {
+        val c = calendar(millis)
+        return String.format(Locale.getDefault(), "%04d 年 %02d 月", c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1)
+    }
+
+    /** 周一为 0 ... 周日为 6。 */
+    fun dayIndexFromMonday(millis: Long): Int {
+        val dow = calendar(millis).get(Calendar.DAY_OF_WEEK)
+        return if (dow == Calendar.SUNDAY) 6 else dow - Calendar.MONDAY
+    }
+
+    val WEEKDAY_LABELS = listOf("一", "二", "三", "四", "五", "六", "日")
 
     private fun calendar(millis: Long): Calendar =
         Calendar.getInstance().apply { timeInMillis = millis }

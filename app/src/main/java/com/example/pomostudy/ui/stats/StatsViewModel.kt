@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.pomostudy.di.AppContainer
+import com.example.pomostudy.ui.theme.TagColorPalette
 import com.example.pomostudy.util.TimeUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,18 +18,27 @@ import kotlinx.coroutines.launch
 /** 统计维度。 */
 enum class StatsPeriod { DAY, WEEK, MONTH }
 
-/** 饼图切片：某标签在统计区间内的学习时长。 */
-data class TagSlice(val label: String, val colorLong: Long, val seconds: Long)
+/** 饼图切片：某待办在统计区间内的学习时长。 */
+data class StatSlice(val label: String, val colorLong: Long, val seconds: Long)
+
+/** 一周单日数据点（周一..周日）。 */
+data class DailyPoint(val label: String, val seconds: Long)
 
 data class StatsUiState(
     val period: StatsPeriod = StatsPeriod.DAY,
+    /** 回溯偏移：0 表示当前周期，-1 表示上一周期…… */
+    val periodOffset: Int = 0,
+    val rangeLabel: String = "",
+    val isCurrent: Boolean = true,
     val totalSeconds: Long = 0L,
-    val slices: List<TagSlice> = emptyList(),
+    val slices: List<StatSlice> = emptyList(),
+    /** 当前自然周（周一..周日）每日学习时长，用于曲线图。 */
+    val weekly: List<DailyPoint> = emptyList(),
     val goalMinutes: Int = 120,
     val loading: Boolean = false
 )
 
-/** 统计页 ViewModel：按日/周/月聚合各标签学习时长，并展示每日目标进度。 */
+/** 统计页 ViewModel：按日/周/月聚合各待办学习时长，支持回溯上一周期，并给出本周曲线。 */
 class StatsViewModel(private val container: AppContainer) : ViewModel() {
 
     private val _state = MutableStateFlow(StatsUiState())
@@ -44,31 +54,90 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     fun setPeriod(period: StatsPeriod) {
-        _state.update { it.copy(period = period) }
+        _state.update { it.copy(period = period, periodOffset = 0) }
+        refresh()
+    }
+
+    /** 回溯：delta 为 -1 表示往前一个周期，+1 表示往后（不能超过当前）。 */
+    fun moveOffset(delta: Int) {
+        val next = (_state.value.periodOffset + delta).coerceAtMost(0)
+        _state.update { it.copy(periodOffset = next) }
+        refresh()
+    }
+
+    fun goToCurrent() {
+        _state.update { it.copy(periodOffset = 0) }
         refresh()
     }
 
     /** 重新聚合统计数据（图表支持刷新）。 */
     fun refresh() = viewModelScope.launch {
         _state.update { it.copy(loading = true) }
+        val s = _state.value
         val now = System.currentTimeMillis()
-        val (start, end) = when (_state.value.period) {
-            StatsPeriod.DAY -> TimeUtils.startOfDay(now) to TimeUtils.endOfDay(now)
-            StatsPeriod.WEEK -> TimeUtils.startOfWeek(now) to TimeUtils.endOfWeek(now)
-            StatsPeriod.MONTH -> TimeUtils.startOfMonth(now) to TimeUtils.endOfMonth(now)
+
+        val anchor = when (s.period) {
+            StatsPeriod.DAY -> TimeUtils.addDays(now, s.periodOffset)
+            StatsPeriod.WEEK -> TimeUtils.addDays(now, s.periodOffset * 7)
+            StatsPeriod.MONTH -> TimeUtils.addMonths(now, s.periodOffset)
         }
+        val start: Long
+        val end: Long
+        val label: String
+        when (s.period) {
+            StatsPeriod.DAY -> {
+                start = TimeUtils.startOfDay(anchor)
+                end = TimeUtils.endOfDay(anchor)
+                label = TimeUtils.formatDate(anchor)
+            }
+            StatsPeriod.WEEK -> {
+                start = TimeUtils.startOfWeek(anchor)
+                end = TimeUtils.endOfWeek(anchor)
+                label = "${TimeUtils.formatDate(start)} ~ ${TimeUtils.formatDate(end)}"
+            }
+            StatsPeriod.MONTH -> {
+                start = TimeUtils.startOfMonth(anchor)
+                end = TimeUtils.endOfMonth(anchor)
+                label = TimeUtils.formatYearMonth(anchor)
+            }
+        }
+
         val total = container.studyRepository.totalSecondsInRange(start, end)
-        val byTag = container.studyRepository.totalSecondsByTag(start, end)
+        val byTodo = container.studyRepository.totalSecondsByTodo(start, end)
+        val todos = container.todoRepository.todos.first()
         val tags = container.tagRepository.tags.first()
-        val slices = byTag.map { d ->
-            val tag = tags.firstOrNull { it.id == d.tagId }
-            TagSlice(
-                label = tag?.name ?: "未分类",
-                colorLong = tag?.color ?: 0xFF9E9E9E,
+        val slices = byTodo.mapIndexed { index, d ->
+            val todo = todos.firstOrNull { it.id == d.todoId }
+            val color = todo?.tagId?.let { tid -> tags.firstOrNull { it.id == tid }?.color }
+                ?: TagColorPalette[index % TagColorPalette.size]
+            StatSlice(
+                label = todo?.title ?: "未绑定待办",
+                colorLong = color,
                 seconds = d.totalSeconds
             )
         }
-        _state.update { it.copy(totalSeconds = total, slices = slices, loading = false) }
+
+        // 当前自然周曲线（始终为本周）
+        val weekStart = TimeUtils.startOfWeek(now)
+        val weekEnd = TimeUtils.endOfWeek(now)
+        val weekRecords = container.studyRepository.recordsInRange(weekStart, weekEnd)
+        val daily = LongArray(7)
+        weekRecords.forEach { r ->
+            val idx = TimeUtils.dayIndexFromMonday(r.startTime)
+            if (idx in 0..6) daily[idx] += r.durationSeconds
+        }
+        val weekly = (0..6).map { i -> DailyPoint(TimeUtils.WEEKDAY_LABELS[i], daily[i]) }
+
+        _state.update {
+            it.copy(
+                totalSeconds = total,
+                slices = slices,
+                weekly = weekly,
+                rangeLabel = label,
+                isCurrent = s.periodOffset == 0,
+                loading = false
+            )
+        }
     }
 
     companion object {

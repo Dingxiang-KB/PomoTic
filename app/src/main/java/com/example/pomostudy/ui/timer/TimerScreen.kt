@@ -1,5 +1,6 @@
 package com.example.pomostudy.ui.timer
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -107,10 +108,36 @@ fun TimerScreen(
                     label = { Text("休息 ${state.breakMinutes} 分") }
                 )
             }
+            // 直接在计时页设置倒计时时长
+            Spacer(Modifier.height(8.dp))
+            Card(Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp, horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    DurationStepper(
+                        label = "工作时长",
+                        value = state.workMinutes,
+                        range = 1..180,
+                        onChange = { vm.setWorkMinutes(it) }
+                    )
+                    DurationStepper(
+                        label = "休息时长",
+                        value = state.breakMinutes,
+                        range = 1..60,
+                        onChange = { vm.setBreakMinutes(it) }
+                    )
+                }
+            }
         }
 
         Spacer(Modifier.height(24.dp))
-        CircularTimer(state = state)
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            CircularTimer(state = state)
+        }
         Spacer(Modifier.height(16.dp))
 
         // 控制按钮
@@ -236,6 +263,8 @@ fun TimerScreen(
 private fun CircularTimer(state: com.example.pomostudy.service.TimerUiState) {
     val trackColor = MaterialTheme.colorScheme.surfaceVariant
     val progressColor = MaterialTheme.colorScheme.primary
+    val sweepTarget = if (state.mode == TimerMode.FREE) 360f else 360f * state.progress
+    val sweep by animateFloatAsState(targetValue = sweepTarget, label = "timerSweep")
     Box(contentAlignment = Alignment.Center) {
         Canvas(modifier = Modifier.size(240.dp)) {
             val stroke = 18.dp.toPx()
@@ -251,7 +280,6 @@ private fun CircularTimer(state: com.example.pomostudy.service.TimerUiState) {
                 size = arcSize,
                 style = Stroke(width = stroke, cap = StrokeCap.Round)
             )
-            val sweep = if (state.mode == TimerMode.FREE) 360f else 360f * state.progress
             drawArc(
                 color = progressColor,
                 startAngle = -90f,
@@ -278,6 +306,37 @@ private fun CircularTimer(state: com.example.pomostudy.service.TimerUiState) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+/** 时长加减组件（计时页直接设置倒计时分钟数）。 */
+@Composable
+private fun DurationStepper(
+    label: String,
+    value: Int,
+    range: IntRange,
+    onChange: (Int) -> Unit
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedButton(onClick = { onChange((value - 1).coerceIn(range.first, range.last)) }) {
+                Text("−")
+            }
+            Text(
+                text = "$value",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 12.dp)
+            )
+            OutlinedButton(onClick = { onChange((value + 1).coerceIn(range.first, range.last)) }) {
+                Text("＋")
+            }
         }
     }
 }

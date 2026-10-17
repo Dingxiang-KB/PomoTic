@@ -1,6 +1,7 @@
 package com.example.pomostudy.ui.calendar
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -41,6 +42,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -192,15 +194,18 @@ private fun CalendarDayCell(
     onLongClick: () -> Unit
 ) {
     val isOutDate = day.position != DayPosition.MonthDate
-    val bg = when {
-        isSelected -> MaterialTheme.colorScheme.primaryContainer
-        isToday -> MaterialTheme.colorScheme.secondaryContainer
-        else -> Color.Transparent
-    }
+    val bg by animateColorAsState(
+        targetValue = when {
+            isSelected -> MaterialTheme.colorScheme.primaryContainer
+            isToday -> MaterialTheme.colorScheme.secondaryContainer
+            else -> Color.Transparent
+        },
+        label = "dayBg"
+    )
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 72.dp)
+            .heightIn(min = 90.dp)
             .padding(2.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(bg)
@@ -208,15 +213,24 @@ private fun CalendarDayCell(
             .padding(4.dp)
     ) {
         Column {
-            Text(
-                text = day.date.dayOfMonth.toString(),
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
-                color = if (isOutDate) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                else MaterialTheme.colorScheme.onSurface
-            )
-            // 待办文本
-            todos.take(2).forEach { todo ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = day.date.dayOfMonth.toString(),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
+                    color = if (isOutDate) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                    else MaterialTheme.colorScheme.onSurface
+                )
+                if (todos.isNotEmpty()) {
+                    Text(
+                        text = " ${todos.size}项",
+                        fontSize = 8.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+            // 待办文本（最多 3 条，完成划线）
+            todos.take(3).forEach { todo ->
                 val tagColor = todo.tagId?.let { tagMap[it]?.color?.toComposeColor() }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(4.dp).clip(CircleShape).background(tagColor ?: MaterialTheme.colorScheme.primary))
@@ -225,14 +239,16 @@ private fun CalendarDayCell(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         fontSize = 9.sp,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        textDecoration = if (todo.isCompleted) TextDecoration.LineThrough else null,
+                        color = if (todo.isCompleted) MaterialTheme.colorScheme.onSurfaceVariant
+                        else MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(start = 2.dp)
                     )
                 }
             }
-            if (todos.size > 2) {
+            if (todos.size > 3) {
                 Text(
-                    text = "+${todos.size - 2} 项待办",
+                    text = "+${todos.size - 3} 项待办",
                     fontSize = 9.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -243,14 +259,9 @@ private fun CalendarDayCell(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(top = 2.dp)
                 ) {
-                    Box(
-                        Modifier
-                            .size(6.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF43A047))
-                    )
+                    Box(Modifier.size(6.dp).clip(CircleShape).background(Color(0xFF43A047)))
                     Text(
-                        text = " ${records.size} 条记录",
+                        text = " ${records.size} 条",
                         fontSize = 9.sp,
                         color = Color(0xFF43A047)
                     )

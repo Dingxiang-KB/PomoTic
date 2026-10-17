@@ -1,5 +1,6 @@
 package com.example.pomostudy.ui.todo
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -68,6 +69,7 @@ fun TodoScreen(container: AppContainer) {
 
     var showEditor by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<TodoEntity?>(null) }
+    var pendingDelete by remember { mutableStateOf<TodoEntity?>(null) }
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
@@ -80,22 +82,28 @@ fun TodoScreen(container: AppContainer) {
                 onSetDate = vm::setDateFilter
             )
 
-            if (todos.isEmpty()) {
-                EmptyHint("暂无符合条件的待办，点击右下角 + 新增")
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(todos, key = { it.id }) { todo ->
-                        TodoItem(
-                            todo = todo,
-                            tags = tags,
-                            onToggle = { vm.toggle(todo) },
-                            onEdit = { editing = todo; showEditor = true },
-                            onDelete = { vm.delete(todo) }
-                        )
+            Crossfade(
+                targetState = todos.isEmpty(),
+                label = "todoList"
+            ) { isEmpty ->
+                if (isEmpty) {
+                    EmptyHint("暂无符合条件的待办，点击右下角 + 新增")
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(todos, key = { it.id }) { todo ->
+                            TodoItem(
+                                modifier = Modifier.animateItem(),
+                                todo = todo,
+                                tags = tags,
+                                onToggle = { vm.toggle(todo) },
+                                onEdit = { editing = todo; showEditor = true },
+                                onDelete = { pendingDelete = todo }
+                            )
+                        }
                     }
                 }
             }
@@ -118,11 +126,33 @@ fun TodoScreen(container: AppContainer) {
             onDismiss = { showEditor = false },
             onSave = { entity ->
                 if (entity.id == 0L) {
-                    vm.add(entity.title, entity.note, entity.dueDate, entity.tagId, entity.priority, entity.repeatRule)
+                    vm.add(
+                        entity.title, entity.note, entity.dueDate, entity.tagId,
+                        entity.priority, entity.repeatRule, entity.carryOver
+                    )
                 } else {
                     vm.update(entity)
                 }
                 showEditor = false
+            }
+        )
+    }
+
+    // 删除确认
+    val toDelete = pendingDelete
+    if (toDelete != null) {
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("删除待办") },
+            text = { Text("确定删除「${toDelete.title}」吗？此操作不可撤销。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.delete(toDelete)
+                    pendingDelete = null
+                }) { Text("删除") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) { Text("取消") }
             }
         )
     }
@@ -200,10 +230,11 @@ private fun TodoItem(
     tags: List<TagEntity>,
     onToggle: () -> Unit,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val tag = tags.firstOrNull { it.id == todo.tagId }
-    Card(Modifier.fillMaxWidth()) {
+    Card(modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -268,6 +299,7 @@ private fun TodoEditorDialog(
     var tagId by remember { mutableStateOf(initial?.tagId) }
     var priority by remember { mutableStateOf(initial?.priority ?: Priority.MEDIUM) }
     var repeatRule by remember { mutableStateOf(initial?.repeatRule ?: RepeatRule.NONE) }
+    var carryOver by remember { mutableStateOf(initial?.carryOver ?: false) }
     var showDatePicker by remember { mutableStateOf(false) }
 
     AlertDialog(
@@ -282,7 +314,8 @@ private fun TodoEditorDialog(
                             dueDate = dueDate,
                             tagId = tagId,
                             priority = priority,
-                            repeatRule = repeatRule
+                            repeatRule = repeatRule,
+                            carryOver = carryOver
                         )
                     )
                 },
@@ -353,6 +386,19 @@ private fun TodoEditorDialog(
                             selected = repeatRule == r,
                             onClick = { repeatRule = r },
                             label = { Text(repeatLabel(r)) }
+                        )
+                    }
+                }
+                if (repeatRule != RepeatRule.DAILY) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = carryOver,
+                            onCheckedChange = { carryOver = it }
+                        )
+                        Text(
+                            text = "当天未完成，顺延到下一天",
+                            style = MaterialTheme.typography.bodyMedium
                         )
                     }
                 }

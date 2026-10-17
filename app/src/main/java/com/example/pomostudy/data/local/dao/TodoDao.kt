@@ -38,4 +38,14 @@ interface TodoDao {
 
     @Query("UPDATE todos SET isCompleted = :completed WHERE id = :id")
     suspend fun setCompleted(id: Long, completed: Boolean)
+
+    @Query("UPDATE todos SET dueDate = :dueDate WHERE id = :id")
+    suspend fun setDueDate(id: Long, dueDate: Long)
+
+    /** 未完成、开启顺延且已过期的待办。 */
+    @Query(
+        "SELECT * FROM todos WHERE isCompleted = 0 AND carryOver = 1 " +
+            "AND dueDate IS NOT NULL AND dueDate < :threshold"
+    )
+    suspend fun getOverdueCarryOver(threshold: Long): List<TodoEntity>
 }

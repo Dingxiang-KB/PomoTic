@@ -34,5 +34,7 @@ data class TodoEntity(
     val priority: Priority = Priority.MEDIUM,
     val isCompleted: Boolean = false,
     val repeatRule: RepeatRule = RepeatRule.NONE,
+    /** 非“每日重复”待办：当天未完成时是否顺延到次日。 */
+    val carryOver: Boolean = false,
     val createdAt: Long = System.currentTimeMillis()
 )

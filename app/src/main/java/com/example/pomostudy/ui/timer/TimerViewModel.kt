@@ -18,6 +18,7 @@ import com.example.pomostudy.service.TimerUiState
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 /** 计时页 ViewModel：转发计时命令到 [com.example.pomostudy.service.TimerController] 并管理前后台服务。 */
 class TimerViewModel(
@@ -51,6 +52,16 @@ class TimerViewModel(
         container.timerController.setBoundTodo(todo?.id, todo?.title)
 
     fun setAutoComplete(value: Boolean) = container.timerController.setAutoComplete(value)
+
+    /** 直接在计时页调整倒计时工作时长（写回 DataStore，空闲时计时器会即时同步）。 */
+    fun setWorkMinutes(minutes: Int) = viewModelScope.launch {
+        container.settingsRepository.setWorkMinutes(minutes)
+    }
+
+    /** 直接在计时页调整倒计时休息时长。 */
+    fun setBreakMinutes(minutes: Int) = viewModelScope.launch {
+        container.settingsRepository.setBreakMinutes(minutes)
+    }
 
     fun start() {
         container.timerController.start()

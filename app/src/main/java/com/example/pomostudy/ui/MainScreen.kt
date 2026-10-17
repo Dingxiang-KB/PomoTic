@@ -4,6 +4,11 @@ import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -12,7 +17,6 @@ import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.Label
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Settings
@@ -169,7 +173,15 @@ fun MainScreen(container: AppContainer) {
         NavHost(
             navController = navController,
             startDestination = Routes.TIMER,
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.padding(innerPadding),
+            enterTransition = {
+                fadeIn(animationSpec = tween(220)) + slideInHorizontally { it / 14 }
+            },
+            exitTransition = { fadeOut(animationSpec = tween(160)) },
+            popEnterTransition = { fadeIn(animationSpec = tween(220)) },
+            popExitTransition = {
+                fadeOut(animationSpec = tween(160)) + slideOutHorizontally { it / 14 }
+            }
         ) {
             composable(Routes.TIMER) { TimerScreen(container = container, snackbarHostState = snackbarHostState) }
             composable(Routes.TODO) { TodoScreen(container = container) }

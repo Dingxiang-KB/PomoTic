@@ -25,6 +25,17 @@ class TodoRepository(private val todoDao: TodoDao) {
         todoDao.observeByDateRange(start, end)
 
     /**
+     * 顺延：对“非每日重复”且开启 carryOver 的待办，若已过却未完成，则把截止日期移动到今天，
+     * 使其在当天继续显示（即“接续到下一天”）。
+     */
+    suspend fun carryOverOverdueTodos() {
+        val todayStart = TimeUtils.startOfDay(System.currentTimeMillis())
+        todoDao.getOverdueCarryOver(todayStart).forEach { todo ->
+            todoDao.setDueDate(todo.id, todayStart)
+        }
+    }
+
+    /**
      * 勾选/取消完成。
      * 重复待办（每日/每月）在“本次勾选为完成”时，仅标记当前这一条实例完成，
      * 并且另外生成下一条待完成实例，因此不影响后续生成的重复任务。

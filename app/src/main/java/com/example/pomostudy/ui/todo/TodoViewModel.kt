@@ -39,6 +39,11 @@ class TodoViewModel(private val container: AppContainer) : ViewModel() {
     private val _filters = MutableStateFlow(TodoFilters())
     val filters: StateFlow<TodoFilters> = _filters.asStateFlow()
 
+    init {
+        // 进入待办页时，处理“顺延到次日”的过期未完成待办
+        viewModelScope.launch { container.todoRepository.carryOverOverdueTodos() }
+    }
+
     val tags: StateFlow<List<TagEntity>> = container.tagRepository.tags
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -94,7 +99,8 @@ class TodoViewModel(private val container: AppContainer) : ViewModel() {
         dueDate: Long?,
         tagId: Long?,
         priority: Priority,
-        repeatRule: RepeatRule
+        repeatRule: RepeatRule,
+        carryOver: Boolean
     ) = viewModelScope.launch {
         container.todoRepository.add(
             TodoEntity(
@@ -103,7 +109,8 @@ class TodoViewModel(private val container: AppContainer) : ViewModel() {
                 dueDate = dueDate,
                 tagId = tagId,
                 priority = priority,
-                repeatRule = repeatRule
+                repeatRule = repeatRule,
+                carryOver = carryOver
             )
         )
     }
