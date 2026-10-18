@@ -7,6 +7,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -340,7 +341,11 @@ private fun SegmentCell(
     Box(
         modifier = modifier
             .fillMaxHeight()
-            .clickable(enabled = enabled) { onClick() },
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                enabled = enabled
+            ) { onClick() },
         contentAlignment = Alignment.Center
     ) {
         Text(
