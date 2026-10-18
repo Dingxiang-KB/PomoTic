@@ -84,7 +84,7 @@ private fun titleFor(route: String): String = when (route) {
     Routes.STATS -> "统计"
     Routes.TAGS -> "标签管理"
     Routes.SETTINGS -> "设置"
-    else -> "PomoStudy"
+    else -> "PomoTic"
 }
 
 /** 根界面：底部 4 Tab 导航 + 顶栏（主题切换 / 标签 / 设置） + NavHost。 */

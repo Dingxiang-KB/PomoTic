@@ -71,7 +71,7 @@ class NotificationHelper(private val context: Context) {
         val text = if (state.status == TimerStatus.PAUSED) "已暂停 · $timeText" else "$label · $timeText"
         return NotificationCompat.Builder(context, CHANNEL_ONGOING)
             .setSmallIcon(R.drawable.ic_stat_timer)
-            .setContentTitle("PomoStudy 计时中")
+            .setContentTitle("PomoTic 计时中")
             .setContentText(text)
             .setOngoing(true)
             .setOnlyAlertOnce(true)

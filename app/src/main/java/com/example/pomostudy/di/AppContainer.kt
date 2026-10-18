@@ -57,7 +57,7 @@ class AppContainer(context: Context) {
         val records = database.studyRecordDao().getAll()
 
         val root = JSONObject()
-        root.put("app", "PomoStudy")
+        root.put("app", "PomoTic")
         root.put("version", 1)
         root.put("exportedAt", System.currentTimeMillis())
 

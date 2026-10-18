@@ -1,12 +1,15 @@
 package com.example.pomostudy.ui.timer
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -267,7 +271,7 @@ fun TimerScreen(
     }
 }
 
-/** 两段式分段控件（中间直线分隔，略高）。 */
+/** 两段式分段控件（无分隔线，选中高亮左右滑动动画）。 */
 @Composable
 private fun TwoSegment(
     left: String,
@@ -277,34 +281,46 @@ private fun TwoSegment(
     onSelectLeft: () -> Unit,
     onSelectRight: () -> Unit
 ) {
-    Row(
+    val corner = RoundedCornerShape(12.dp)
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
             .height(46.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant),
-        verticalAlignment = Alignment.CenterVertically
+            .clip(corner)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        SegmentCell(
-            text = left,
-            selected = leftSelected,
-            enabled = enabled,
-            modifier = Modifier.weight(1f),
-            onClick = onSelectLeft
+        val target = if (leftSelected) 0f else 1f
+        val frac by animateFloatAsState(
+            targetValue = target,
+            animationSpec = tween(durationMillis = 240),
+            label = "segSlide"
         )
+        val half = maxWidth / 2
         Box(
-            Modifier
-                .width(1.dp)
+            modifier = Modifier
+                .offset(x = half * frac)
+                .width(half)
                 .fillMaxHeight()
-                .background(MaterialTheme.colorScheme.outlineVariant)
+                .padding(3.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(MaterialTheme.colorScheme.primary)
         )
-        SegmentCell(
-            text = right,
-            selected = !leftSelected,
-            enabled = enabled,
-            modifier = Modifier.weight(1f),
-            onClick = onSelectRight
-        )
+        Row(Modifier.fillMaxSize()) {
+            SegmentCell(
+                text = left,
+                selected = leftSelected,
+                enabled = enabled,
+                modifier = Modifier.weight(1f),
+                onClick = onSelectLeft
+            )
+            SegmentCell(
+                text = right,
+                selected = !leftSelected,
+                enabled = enabled,
+                modifier = Modifier.weight(1f),
+                onClick = onSelectRight
+            )
+        }
     }
 }
 
@@ -316,11 +332,14 @@ private fun SegmentCell(
     modifier: Modifier,
     onClick: () -> Unit
 ) {
+    val color by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.onPrimary
+        else MaterialTheme.colorScheme.onSurfaceVariant,
+        label = "segText"
+    )
     Box(
         modifier = modifier
             .fillMaxHeight()
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent)
             .clickable(enabled = enabled) { onClick() },
         contentAlignment = Alignment.Center
     ) {
@@ -328,8 +347,7 @@ private fun SegmentCell(
             text = text,
             style = MaterialTheme.typography.titleSmall,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-            color = if (selected) MaterialTheme.colorScheme.onPrimary
-            else MaterialTheme.colorScheme.onSurfaceVariant
+            color = color
         )
     }
 }
