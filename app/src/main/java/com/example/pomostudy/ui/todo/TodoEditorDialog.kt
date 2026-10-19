@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -20,6 +22,7 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -35,6 +38,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -86,6 +90,8 @@ fun TodoEditorDialog(
 
     val isDaily = repeatRule == RepeatRule.DAILY
     val fixedDueDate = initial?.dueDate ?: defaultDueDate
+    // 内容区最大高度约屏高 62%，内容较少时弹窗自动变矮，内容过多时才滚动
+    val maxContentHeight = LocalConfiguration.current.screenHeightDp.dp * 0.62f
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -94,136 +100,143 @@ fun TodoEditorDialog(
         Surface(
             shape = RoundedCornerShape(20.dp),
             tonalElevation = 6.dp,
-            modifier = Modifier
-                .fillMaxWidth(0.92f)
-                .heightIn(max = 600.dp)
+            modifier = Modifier.fillMaxWidth(0.92f)
         ) {
-            Column(
-                Modifier
-                    .padding(20.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                Text(
-                    text = if (initial == null) "新增待办" else "编辑待办",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    label = { Text("标题") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = note,
-                    onValueChange = { note = it },
-                    label = { Text("备注") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 2
-                )
-                Spacer(Modifier.height(8.dp))
-                val selectedTag = tags.firstOrNull { it.id == tagId }
-                SimpleDropdown(
-                    label = "标签",
-                    items = tags,
-                    selected = selectedTag,
-                    itemLabel = { it.name },
-                    onSelect = { tagId = it.id },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = "未选择"
-                )
-                if (selectedTag != null) {
-                    TextButton(onClick = { tagId = null }) { Text("清除标签") }
-                }
-                Spacer(Modifier.height(8.dp))
-                Text("优先级", style = MaterialTheme.typography.labelMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Priority.entries.reversed().forEach { p ->
-                        FilterChip(
-                            selected = priority == p,
-                            onClick = { priority = p },
-                            label = { Text(priorityLabel(p)) }
-                        )
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-                Text("重复", style = MaterialTheme.typography.labelMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = repeatRule == RepeatRule.NONE,
-                        onClick = { repeatRule = RepeatRule.NONE },
-                        label = { Text("不重复") }
+            Column(Modifier.fillMaxWidth()) {
+                // 可滚动内容区：高度随内容自适应，仅在超过最大高度时滚动
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = maxContentHeight)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp, vertical = 16.dp)
+                ) {
+                    Text(
+                        text = if (initial == null) "新增待办" else "编辑待办",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold
                     )
-                    FilterChip(
-                        selected = repeatRule == RepeatRule.DAILY,
-                        onClick = {
-                            repeatRule = RepeatRule.DAILY
-                            if (startDate < todayStart) startDate = todayStart
-                        },
-                        label = { Text("每日") }
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        label = { Text("标题") },
+                        modifier = Modifier.fillMaxWidth()
                     )
-                }
-                if (isDaily) {
                     Spacer(Modifier.height(8.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("开始日期", style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(64.dp))
-                        OutlinedButton(onClick = { pickerTarget = 1 }) {
-                            Icon(Icons.Filled.DateRange, contentDescription = null)
-                            Text(TimeUtils.formatDate(startDate), modifier = Modifier.padding(start = 4.dp))
-                        }
+                    OutlinedTextField(
+                        value = note,
+                        onValueChange = { note = it },
+                        label = { Text("备注") },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 2
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    val selectedTag = tags.firstOrNull { it.id == tagId }
+                    SimpleDropdown(
+                        label = "标签",
+                        items = tags,
+                        selected = selectedTag,
+                        itemLabel = { it.name },
+                        onSelect = { tagId = it.id },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = "未选择"
+                    )
+                    if (selectedTag != null) {
+                        TextButton(onClick = { tagId = null }) { Text("清除标签") }
                     }
-                    Spacer(Modifier.height(4.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("结束日期", style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(64.dp))
-                        OutlinedButton(onClick = { pickerTarget = 2 }) {
-                            Icon(Icons.Filled.DateRange, contentDescription = null)
-                            Text(
-                                text = endDate?.let { TimeUtils.formatDate(it) } ?: "每天（无结束）",
-                                modifier = Modifier.padding(start = 4.dp)
+                    Spacer(Modifier.height(8.dp))
+                    Text("优先级", style = MaterialTheme.typography.labelMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Priority.entries.reversed().forEach { p ->
+                            FilterChip(
+                                selected = priority == p,
+                                onClick = { priority = p },
+                                label = { Text(priorityLabel(p)) }
                             )
                         }
-                        if (endDate != null) {
-                            TextButton(onClick = { endDate = null }) { Text("清除") }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text("重复", style = MaterialTheme.typography.labelMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(
+                            selected = repeatRule == RepeatRule.NONE,
+                            onClick = { repeatRule = RepeatRule.NONE },
+                            label = { Text("不重复") }
+                        )
+                        FilterChip(
+                            selected = repeatRule == RepeatRule.DAILY,
+                            onClick = {
+                                repeatRule = RepeatRule.DAILY
+                                if (startDate < todayStart) startDate = todayStart
+                            },
+                            label = { Text("每日") }
+                        )
+                    }
+                    if (isDaily) {
+                        Spacer(Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("开始日期", style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(64.dp))
+                            OutlinedButton(onClick = { pickerTarget = 1 }) {
+                                Icon(Icons.Filled.DateRange, contentDescription = null)
+                                Text(TimeUtils.formatDate(startDate), modifier = Modifier.padding(start = 4.dp))
+                            }
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("结束日期", style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(64.dp))
+                            OutlinedButton(onClick = { pickerTarget = 2 }) {
+                                Icon(Icons.Filled.DateRange, contentDescription = null)
+                                Text(
+                                    text = endDate?.let { TimeUtils.formatDate(it) } ?: "每天（无结束）",
+                                    modifier = Modifier.padding(start = 4.dp)
+                                )
+                            }
+                            if (endDate != null) {
+                                TextButton(onClick = { endDate = null }) { Text("清除") }
+                            }
+                        }
+                    } else if (fixedDueDate != null) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = "日期：${TimeUtils.formatDate(fixedDueDate)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = plannedEnabled,
+                            onCheckedChange = { plannedEnabled = it }
+                        )
+                        Text("设置每日计划时长", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    if (plannedEnabled) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            OutlinedButton(onClick = {
+                                plannedMinutes = (plannedMinutes - 10).coerceAtLeast(10)
+                            }) { Text("−") }
+                            Text(
+                                text = "$plannedMinutes 分",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.width(84.dp),
+                                textAlign = TextAlign.Center
+                            )
+                            OutlinedButton(onClick = {
+                                plannedMinutes = (plannedMinutes + 10).coerceAtMost(1440)
+                            }) { Text("＋") }
                         }
                     }
-                } else if (fixedDueDate != null) {
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = "日期：${TimeUtils.formatDate(fixedDueDate)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(
-                        checked = plannedEnabled,
-                        onCheckedChange = { plannedEnabled = it }
-                    )
-                    Text("设置每日计划时长", style = MaterialTheme.typography.bodyMedium)
-                }
-                if (plannedEnabled) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedButton(onClick = {
-                            plannedMinutes = (plannedMinutes - 10).coerceAtLeast(10)
-                        }) { Text("−") }
-                        Text(
-                            text = "$plannedMinutes 分",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.width(84.dp),
-                            textAlign = TextAlign.Center
-                        )
-                        OutlinedButton(onClick = {
-                            plannedMinutes = (plannedMinutes + 10).coerceAtMost(1440)
-                        }) { Text("＋") }
-                    }
-                }
-                Spacer(Modifier.height(16.dp))
+
+                // 底部固定操作区（始终可见）
+                HorizontalDivider()
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.End
                 ) {
                     TextButton(onClick = onDismiss) { Text("取消") }

@@ -50,8 +50,32 @@ private val DarkColors = darkColorScheme(
     outlineVariant = Color(0xFF3A3A40)
 )
 
+/** 马卡龙色系（更鲜明的柔和配色）：薰衣草紫 + 薄荷绿 + 樱花粉，背景带淡紫调。 */
+private val MacaronColors = lightColorScheme(
+    primary = Color(0xFF8E6BD1),
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFFE7D6FF),
+    onPrimaryContainer = Color(0xFF33165E),
+    secondary = Color(0xFF3FB38C),
+    onSecondary = Color(0xFFFFFFFF),
+    secondaryContainer = Color(0xFFCDEFE2),
+    onSecondaryContainer = Color(0xFF0E3B2D),
+    tertiary = Color(0xFFEF6E97),
+    onTertiary = Color(0xFFFFFFFF),
+    tertiaryContainer = Color(0xFFFFD7E2),
+    onTertiaryContainer = Color(0xFF4A0F26),
+    background = Color(0xFFF4ECFB),
+    onBackground = Color(0xFF2C2140),
+    surface = Color(0xFFFCF8FF),
+    onSurface = Color(0xFF2C2140),
+    surfaceVariant = Color(0xFFE9DCF7),
+    onSurfaceVariant = Color(0xFF56466F),
+    outline = Color(0xFFB49ED6),
+    outlineVariant = Color(0xFFD9C9EE)
+)
+
 /**
- * 应用主题：默认使用与 logo 一致的黑白单色方案；
+ * 应用主题：默认使用与 logo 一致的黑白单色方案，可选马卡龙柔和配色；
  * [dynamicColor] 可开启 Material You 动态取色（默认关闭，保证品牌一致）。
  */
 @Composable
@@ -64,9 +88,11 @@ fun PomoStudyTheme(
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
+        ThemeMode.MACARON -> false
     }
 
     val colorScheme = when {
+        themeMode == ThemeMode.MACARON -> MacaronColors
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)

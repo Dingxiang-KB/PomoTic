@@ -1,11 +1,14 @@
 package com.example.pomostudy.ui.calendar
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -25,6 +28,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
@@ -52,6 +56,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -145,7 +150,7 @@ fun CalendarScreen(container: AppContainer) {
             LegendDot(color = Color(0xFF43A047), text = "已完成")
         }
 
-        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+        Row(Modifier.fillMaxWidth()) {
             daysOfWeek(DayOfWeek.MONDAY).forEach { d ->
                 Text(
                     text = weekDayLabel(d),
@@ -157,21 +162,29 @@ fun CalendarScreen(container: AppContainer) {
             }
         }
 
-        HorizontalCalendar(
-            state = state,
-            modifier = Modifier.fillMaxSize(),
-            dayContent = { day ->
-                CalendarDayCell(
-                    day = day,
-                    isToday = day.date == today,
-                    isSelected = day.date == selectedDate,
-                    todos = todosByDate[day.date].orEmpty(),
-                    tagMap = tagMap,
-                    onClick = { selectedDate = day.date },
-                    onLongClick = { selectedDate = day.date }
-                )
-            }
-        )
+        BoxWithConstraints(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+        ) {
+            val monthRows = state.firstVisibleMonth.weekDays.size.coerceAtLeast(1)
+            val cellHeight = maxHeight / monthRows
+            HorizontalCalendar(
+                state = state,
+                modifier = Modifier.fillMaxSize(),
+                dayContent = { day ->
+                    CalendarDayCell(
+                        day = day,
+                        isToday = day.date == today,
+                        isSelected = day.date == selectedDate,
+                        todos = todosByDate[day.date].orEmpty(),
+                        cellHeight = cellHeight,
+                        onClick = { selectedDate = day.date },
+                        onLongClick = { selectedDate = day.date }
+                    )
+                }
+            )
+        }
     }
 
     val sheetDate = selectedDate
@@ -252,7 +265,7 @@ private fun CalendarDayCell(
     isToday: Boolean,
     isSelected: Boolean,
     todos: List<TodoEntity>,
-    tagMap: Map<Long, TagEntity>,
+    cellHeight: Dp,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
@@ -269,8 +282,8 @@ private fun CalendarDayCell(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 90.dp)
-            .padding(2.dp)
+            .height(cellHeight)
+            .padding(1.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(bg)
             .drawBehind {
@@ -289,31 +302,40 @@ private fun CalendarDayCell(
                 )
             }
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(4.dp)
+            .padding(2.dp)
     ) {
         Column {
             Text(
                 text = day.date.dayOfMonth.toString(),
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
                 color = if (isOutDate) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                 else MaterialTheme.colorScheme.onSurface
             )
-            todos.take(3).forEach { todo ->
-                val tagColor = todo.tagId?.let { tagMap[it]?.color?.toComposeColor() }
-                val dotColor = if (todo.isCompleted) Color(0xFF43A047)
-                else (tagColor ?: MaterialTheme.colorScheme.primary)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(4.dp).clip(CircleShape).background(dotColor))
+            todos.take(5).forEach { todo ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.55f))
+                        .border(
+                            width = 0.5.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f),
+                            shape = RoundedCornerShape(4.dp)
+                        )
+                        .padding(horizontal = 1.dp)
+                ) {
                     Text(
                         text = todo.title,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        overflow = TextOverflow.Clip,
                         fontSize = 9.sp,
+                        lineHeight = 9.sp,
                         textDecoration = if (todo.isCompleted) TextDecoration.LineThrough else null,
                         color = if (todo.isCompleted) Color(0xFF43A047)
-                        else MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(start = 2.dp)
+                        else MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
@@ -370,6 +392,7 @@ private fun DayDetailContent(
         } else {
             items(todos, key = { it.id }) { todo ->
                 val tag = todo.tagId?.let { tagMap[it] }
+                var expanded by remember(todo.id) { mutableStateOf(false) }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = todo.isCompleted, onCheckedChange = { onToggle(todo) })
                     Column(Modifier.weight(1f)) {
@@ -390,11 +413,18 @@ private fun DayDetailContent(
                             }
                         }
                     }
-                    IconButton(onClick = { onEdit(todo) }) {
-                        Icon(Icons.Filled.Edit, contentDescription = "编辑")
+                    AnimatedVisibility(expanded) {
+                        Row {
+                            IconButton(onClick = { onEdit(todo) }) {
+                                Icon(Icons.Filled.Edit, contentDescription = "修改")
+                            }
+                            IconButton(onClick = { onDelete(todo) }) {
+                                Icon(Icons.Filled.Delete, contentDescription = "删除")
+                            }
+                        }
                     }
-                    IconButton(onClick = { onDelete(todo) }) {
-                        Icon(Icons.Filled.Delete, contentDescription = "删除")
+                    IconButton(onClick = { expanded = !expanded }) {
+                        Icon(Icons.Filled.MoreVert, contentDescription = "更多操作")
                     }
                 }
             }

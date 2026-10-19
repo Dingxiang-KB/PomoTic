@@ -5,15 +5,17 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.example.pomostudy.data.local.entity.StudyRecordEntity
+import com.example.pomostudy.data.local.entity.TagEntity
+import com.example.pomostudy.data.local.entity.TodoEntity
 import com.example.pomostudy.di.AppContainer
 import com.example.pomostudy.ui.theme.TagColorPalette
 import com.example.pomostudy.util.TimeUtils
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 
 /** 统计维度。 */
 enum class StatsPeriod { DAY, WEEK, MONTH }
@@ -39,7 +41,7 @@ data class StatsUiState(
     val isCurrent: Boolean = true,
     val totalSeconds: Long = 0L,
     val slices: List<StatSlice> = emptyList(),
-    /** 当前自然周（周一..周日）每日学习时长，用于曲线图。 */
+    /** 当前所看周期所在自然周（周一..周日）每日学习时长，用于曲线图。 */
     val weekly: List<DailyPoint> = emptyList(),
     /** 本周期内设置了计划时长的待办数量。 */
     val plannedTodoCount: Int = 0,
@@ -59,53 +61,70 @@ data class StatsUiState(
     val showWeekly: Boolean get() = period != StatsPeriod.MONTH
 }
 
-/** 统计页 ViewModel：按日/周/月聚合各待办学习时长，支持回溯上一周期，并给出本周曲线。 */
-class StatsViewModel(private val container: AppContainer) : ViewModel() {
+/** 统计计算所需的全部输入（来自数据库 Flow）。 */
+private data class StatsInputs(
+    val period: StatsPeriod,
+    val offset: Int,
+    val records: List<StudyRecordEntity>,
+    val todos: List<TodoEntity>,
+    val tags: List<TagEntity>
+)
 
-    private val _state = MutableStateFlow(StatsUiState())
-    val state: StateFlow<StatsUiState> = _state.asStateFlow()
+/**
+ * 统计页 ViewModel：**响应式**聚合。
+ * 直接订阅学习记录/待办/标签的 Flow，任何数据变化（新增计时、勾选完成等）都会自动刷新，
+ * 无需手动点“刷新”。周期切换与回溯仅改变查询区间。
+ */
+class StatsViewModel(container: AppContainer) : ViewModel() {
 
-    init {
-        viewModelScope.launch {
-            container.settingsRepository.settings.collect { s ->
-                _state.update { it.copy(goalMinutes = s.dailyGoalMinutes) }
-            }
-        }
-        refresh()
+    private val period = MutableStateFlow(StatsPeriod.DAY)
+    private val offset = MutableStateFlow(0)
+    private val revision = MutableStateFlow(0)
+
+    private val inputs = combine(
+        period,
+        offset,
+        container.studyRepository.records,
+        container.todoRepository.todos,
+        container.tagRepository.tags
+    ) { p, off, records, todos, tags ->
+        StatsInputs(p, off, records, todos, tags)
     }
 
-    fun setPeriod(period: StatsPeriod) {
-        _state.update { it.copy(period = period, periodOffset = 0) }
-        refresh()
+    val state: StateFlow<StatsUiState> = combine(inputs, revision) { inp, _ -> compute(inp) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StatsUiState())
+
+    fun setPeriod(p: StatsPeriod) {
+        period.value = p
+        offset.value = 0
     }
 
-    /** 回溯：delta 为 -1 表示往前一个周期，+1 表示往后（不能超过当前）。 */
     fun moveOffset(delta: Int) {
-        val next = (_state.value.periodOffset + delta).coerceAtMost(0)
-        _state.update { it.copy(periodOffset = next) }
-        refresh()
+        offset.value = (offset.value + delta).coerceAtMost(0)
     }
 
     fun goToCurrent() {
-        _state.update { it.copy(periodOffset = 0) }
-        refresh()
+        offset.value = 0
     }
 
-    /** 重新聚合统计数据（图表支持刷新）。 */
-    fun refresh() = viewModelScope.launch {
-        _state.update { it.copy(loading = true) }
-        val s = _state.value
-        val now = System.currentTimeMillis()
+    /** 保留“刷新”入口（数据已响应式，这里强制重算一次）。 */
+    fun refresh() {
+        revision.value++
+    }
 
-        val anchor = when (s.period) {
-            StatsPeriod.DAY -> TimeUtils.addDays(now, s.periodOffset)
-            StatsPeriod.WEEK -> TimeUtils.addDays(now, s.periodOffset * 7)
-            StatsPeriod.MONTH -> TimeUtils.addMonths(now, s.periodOffset)
+    private fun compute(inp: StatsInputs): StatsUiState {
+        val p = inp.period
+        val now = System.currentTimeMillis()
+        val anchor = when (p) {
+            StatsPeriod.DAY -> TimeUtils.addDays(now, inp.offset)
+            StatsPeriod.WEEK -> TimeUtils.addDays(now, inp.offset * 7)
+            StatsPeriod.MONTH -> TimeUtils.addMonths(now, inp.offset)
         }
+
         val start: Long
         val end: Long
         val label: String
-        when (s.period) {
+        when (p) {
             StatsPeriod.DAY -> {
                 start = TimeUtils.startOfDay(anchor)
                 end = TimeUtils.endOfDay(anchor)
@@ -123,26 +142,28 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
             }
         }
 
-        val total = container.studyRepository.totalSecondsInRange(start, end)
-        val byTodo = container.studyRepository.totalSecondsByTodo(start, end)
-        val todos = container.todoRepository.todos.first()
-        val tags = container.tagRepository.tags.first()
-        val slices = byTodo.mapIndexed { index, d ->
-            val todo = todos.firstOrNull { it.id == d.todoId }
-            val color = todo?.tagId?.let { tid -> tags.firstOrNull { it.id == tid }?.color }
+        val inRange = inp.records.filter { it.startTime in start..end }
+        val total = inRange.sumOf { it.durationSeconds }
+
+        // 按待办聚合
+        val byTodo = inRange.groupBy { it.todoId }
+            .map { (todoId, recs) -> todoId to recs.sumOf { it.durationSeconds } }
+            .sortedByDescending { it.second }
+        val todoMap = inp.todos.associateBy { it.id }
+        val slices = byTodo.mapIndexed { index, (todoId, secs) ->
+            val todo = todoId?.let { todoMap[it] }
+            val color = todo?.tagId?.let { tid -> inp.tags.firstOrNull { it.id == tid }?.color }
                 ?: TagColorPalette[index % TagColorPalette.size]
             StatSlice(
                 label = todo?.title ?: "未绑定待办",
                 colorLong = color,
-                seconds = d.totalSeconds
+                seconds = secs
             )
         }
 
-        // 计划进度：本周期内有设置计划时长的待办，及其实际投入时长
-        val actualByTodo = byTodo
-            .mapNotNull { d -> d.todoId?.let { it to d.totalSeconds } }
-            .toMap()
-        val plannedTodos = todos.filter { t ->
+        // 计划进度
+        val actualByTodo = byTodo.toMap()
+        val plannedTodos = inp.todos.filter { t ->
             val d = t.dueDate
             t.plannedMinutes != null && d != null && d in start..end
         }
@@ -156,42 +177,40 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
         val plannedSeconds = plannedItems.sumOf { it.plannedSeconds }
         val plannedActual = plannedItems.sumOf { it.actualSeconds }
 
-        val rangeEndLabel: String? =
-            if (s.period == StatsPeriod.WEEK) TimeUtils.formatDate(end).takeLast(5) else null
-        val rangeStartLabel: String =
-            if (s.period == StatsPeriod.WEEK) TimeUtils.formatDate(start).takeLast(5) else label
-
-        // 学习曲线：仅在“日/周”维度展示，且跟随所选周期（其所在周）与回溯偏移；月维度不展示
-        val weekly: List<DailyPoint> = if (s.period == StatsPeriod.MONTH) {
+        // 学习曲线（仅日/周）：所选周期所在自然周
+        val weekly: List<DailyPoint> = if (p == StatsPeriod.MONTH) {
             emptyList()
         } else {
             val weekStart = TimeUtils.startOfWeek(anchor)
             val weekEnd = TimeUtils.endOfWeek(anchor)
-            val weekRecords = container.studyRepository.recordsInRange(weekStart, weekEnd)
             val daily = LongArray(7)
-            weekRecords.forEach { r ->
+            inp.records.filter { it.startTime in weekStart..weekEnd }.forEach { r ->
                 val idx = TimeUtils.dayIndexFromMonday(r.startTime)
                 if (idx in 0..6) daily[idx] += r.durationSeconds
             }
-            (0..6).map { i -> DailyPoint(TimeUtils.WEEKDAY_LABELS[i], daily[i]) }
+            (0..6).map { DailyPoint(TimeUtils.WEEKDAY_LABELS[it], daily[it]) }
         }
 
-        _state.update {
-            it.copy(
-                totalSeconds = total,
-                slices = slices,
-                weekly = weekly,
-                plannedTodoCount = plannedTodos.size,
-                plannedSeconds = plannedSeconds,
-                plannedActualSeconds = plannedActual,
-                plannedItems = plannedItems,
-                rangeStartLabel = rangeStartLabel,
-                rangeEndLabel = rangeEndLabel,
-                rangeLabel = label,
-                isCurrent = s.periodOffset == 0,
-                loading = false
-            )
-        }
+        val rangeEndLabel: String? =
+            if (p == StatsPeriod.WEEK) TimeUtils.formatDate(end).takeLast(5) else null
+        val rangeStartLabel: String =
+            if (p == StatsPeriod.WEEK) TimeUtils.formatDate(start).takeLast(5) else label
+
+        return StatsUiState(
+            period = p,
+            periodOffset = inp.offset,
+            rangeLabel = label,
+            isCurrent = inp.offset == 0,
+            totalSeconds = total,
+            slices = slices,
+            weekly = weekly,
+            plannedTodoCount = plannedTodos.size,
+            plannedSeconds = plannedSeconds,
+            plannedActualSeconds = plannedActual,
+            plannedItems = plannedItems,
+            rangeStartLabel = rangeStartLabel,
+            rangeEndLabel = rangeEndLabel
+        )
     }
 
     companion object {

@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -98,8 +99,7 @@ fun TodoScreen(container: AppContainer) {
                 selectedDay = filters.selectedDay,
                 todayStart = todayStart,
                 onSelectDay = { vm.selectDay(it) },
-                onShiftWeek = { vm.shiftWeek(it) },
-                onShowAll = { vm.selectDay(null) }
+                onShiftWeek = { vm.shiftWeek(it) }
             )
 
             // 折叠筛选
@@ -228,10 +228,11 @@ private fun WeekStrip(
     selectedDay: Long?,
     todayStart: Long,
     onSelectDay: (Long?) -> Unit,
-    onShiftWeek: (Int) -> Unit,
-    onShowAll: () -> Unit
+    onShiftWeek: (Int) -> Unit
 ) {
     var dragAccum by remember { mutableStateOf(0f) }
+    // 记住上一次选中的“某一天”，用于“全部 / 当日”来回切换
+    var lastDay by remember { mutableStateOf(selectedDay ?: todayStart) }
 
     Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -264,7 +265,15 @@ private fun WeekStrip(
             IconButton(onClick = { onShiftWeek(1) }) {
                 Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "下一周")
             }
-            TextButton(onClick = onShowAll) { Text("全部") }
+            TextButton(onClick = {
+                val cur = selectedDay
+                if (cur != null) {
+                    lastDay = cur
+                    onSelectDay(null)
+                } else {
+                    onSelectDay(lastDay)
+                }
+            }) { Text(if (selectedDay == null) "当日" else "全部") }
         }
         Row(
             modifier = Modifier
@@ -298,7 +307,7 @@ private fun WeekStrip(
                         .weight(1f)
                         .clip(RoundedCornerShape(10.dp))
                         .background(bg)
-                        .clickable { onSelectDay(day) }
+                        .clickable { lastDay = day; onSelectDay(day) }
                         .padding(vertical = 6.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
@@ -388,6 +397,7 @@ private fun TodoItem(
     modifier: Modifier = Modifier
 ) {
     val tag = tags.firstOrNull { it.id == todo.tagId }
+    var actionsExpanded by remember(todo.id) { mutableStateOf(false) }
     Card(modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.padding(12.dp),
@@ -439,8 +449,15 @@ private fun TodoItem(
                     }
                 }
             }
-            IconButton(onClick = onEdit) { Icon(Icons.Filled.Edit, contentDescription = "编辑") }
-            IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, contentDescription = "删除") }
+            AnimatedVisibility(actionsExpanded) {
+                Row {
+                    IconButton(onClick = onEdit) { Icon(Icons.Filled.Edit, contentDescription = "修改") }
+                    IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, contentDescription = "删除") }
+                }
+            }
+            IconButton(onClick = { actionsExpanded = !actionsExpanded }) {
+                Icon(Icons.Filled.MoreVert, contentDescription = "更多操作")
+            }
         }
     }
 }

@@ -107,6 +107,7 @@ fun MainScreen(container: AppContainer) {
         ThemeMode.SYSTEM -> systemDark
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
+        ThemeMode.MACARON -> false
     }
 
     Scaffold(
