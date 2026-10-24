@@ -1,7 +1,33 @@
-# PomoTic · 番茄钟学习 App
+<p align="center">
+  <img src="docs/icon.png" alt="PomoTic Logo" width="120" height="120" />
+</p>
 
-> 一款基于 **Kotlin + Jetpack Compose** 的安卓番茄钟 / 学习记录应用，采用 **MVVM** 架构，
-> 支持番茄倒计时与自由正计时、待办清单、月日历视图、学习时长统计与深浅色主题，数据全部本地离线存储。
+<h1 align="center">PomoTic · 番茄钟学习 App</h1>
+
+<p align="center">
+  一款基于 <b>Kotlin + Jetpack Compose</b> 的安卓番茄钟 / 学习记录应用，采用 <b>MVVM</b> 架构，<br/>
+  支持番茄倒计时与自由正计时、待办清单、月日历视图、学习时长统计与深浅色主题，数据全部本地离线存储。
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Platform-Android-3DDC84?logo=android&logoColor=white" alt="Platform" />
+  <img src="https://img.shields.io/badge/Language-Kotlin-7F52FF?logo=kotlin&logoColor=white" alt="Kotlin" />
+  <img src="https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4?logo=jetpackcompose&logoColor=white" alt="Compose" />
+  <img src="https://img.shields.io/badge/Architecture-MVVM-orange" alt="MVVM" />
+  <img src="https://img.shields.io/badge/minSdk-24-brightgreen" alt="minSdk" />
+  <img src="https://img.shields.io/badge/targetSdk-37-blue" alt="targetSdk" />
+  <img src="https://img.shields.io/badge/License-MIT-yellow" alt="License" />
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Database-Room-6DB33F" alt="Room" />
+  <img src="https://img.shields.io/badge/Storage-DataStore-6DB33F" alt="DataStore" />
+  <img src="https://img.shields.io/badge/Build-Gradle%20KTS-02303A?logo=gradle&logoColor=white" alt="Gradle" />
+  <img src="https://img.shields.io/badge/Chart-MPAndroidChart-FF6F00" alt="Chart" />
+  <img src="https://img.shields.io/badge/Calendar-compose--calendar-00B4D8" alt="Calendar" />
+</p>
+
+---
 
 ## ✨ 功能列表
 
